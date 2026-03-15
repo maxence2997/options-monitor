@@ -10,11 +10,13 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from config     import INITIAL_CAPITAL
 from gist_store import load_positions, save_positions
 from pricing    import get_position_current_value
 from strategy   import check_position, check_iron_condor_breach
 from notifier   import (send_alerts, send_daily_summary,
-                        send_startup_message, send_error_message)
+                        send_startup_message, send_error_message,
+                        send_message)
 
 
 def run_monitor(mode: str = "intraday"):
@@ -25,19 +27,16 @@ def run_monitor(mode: str = "intraday"):
 
     if not positions:
         if mode == "daily":
-            from notifier import send_message
-            send_message("📊 <b>每日收盤總結</b>\n目前無開放持倉")
+            send_message("📊 <b>每日收盤總結</b>\n目前無開放持倉", notify=True)
         return
 
     if mode == "daily":
         send_startup_message(len(positions))
 
-    initial_capital = float(os.environ.get("INITIAL_CAPITAL", 1_000_000))
-
-    all_alerts      = []
-    positions_data  = []
-    price_updates   = []
-    total_pnl       = 0.0
+    all_alerts     = []
+    positions_data = []
+    price_updates  = []
+    total_pnl      = 0.0
 
     for pos in positions:
         symbol   = pos["symbol"]
@@ -108,7 +107,7 @@ def run_monitor(mode: str = "intraday"):
         send_alerts(all_alerts)
 
     if mode == "daily":
-        send_daily_summary(positions_data, total_pnl, initial_capital)
+        send_daily_summary(positions_data, total_pnl, INITIAL_CAPITAL)
 
     print(f"[{datetime.now().strftime('%H:%M:%S')}] 監控完成，總 P&L: ${total_pnl:+,.0f}")
 
