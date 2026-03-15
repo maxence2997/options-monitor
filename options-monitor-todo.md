@@ -9,25 +9,27 @@
 
 ## 📌 策略速查
 
-| 策略 | 標的 | 資金佔用 | 張數 | 操作頻率 |
-|------|------|---------|------|---------|
-| Iron Condor | SPY | ~$35,000 | 20 張 | 每月 1 次 |
-| Wheel CSP → CC | NVDA | ~$237,000 | 15 張 | 每月 1-2 次 |
-| Bull Call Spread | QQQ | ~$30,000 | 10 張 | 每 2 個月 1 次 |
-| Hedge Put | SPY | ~$15,000 | 5 張 | 每季 1 次 |
-| 現金保留 | — | ~$683,000 | — | 保留彈藥 |
+| 策略             | 標的 | 資金佔用  | 張數  | 操作頻率       |
+| ---------------- | ---- | --------- | ----- | -------------- |
+| Iron Condor      | SPY  | ~$35,000  | 20 張 | 每月 1 次      |
+| Wheel CSP → CC   | NVDA | ~$237,000 | 15 張 | 每月 1-2 次    |
+| Bull Call Spread | QQQ  | ~$30,000  | 10 張 | 每 2 個月 1 次 |
+| Hedge Put        | SPY  | ~$15,000  | 5 張  | 每季 1 次      |
+| 現金保留         | —    | ~$683,000 | —     | 保留彈藥       |
 
 ---
 
 ## ✅ Phase 0｜今晚：系統環境建立
 
 ### Telegram Bot
+
 - [x] 搜尋 `@BotFather`，輸入 `/newbot` 建立 Bot
 - [x] 記錄 `TELEGRAM_BOT_TOKEN`
 - [x] 對 Bot 發一則訊息，取得 `TELEGRAM_CHAT_ID`
 
 ### GitHub Gist（資料庫）
-- [ ] 前往 [gist.github.com](https://gist.github.com)，建立新的 **Secret Gist**
+
+- [x] 前往 [gist.github.com](https://gist.github.com)，建立新的 **Secret Gist**
   - Filename：`positions.json`
   - Content：
     ```json
@@ -37,16 +39,18 @@
       "last_update": ""
     }
     ```
-- [ ] 從 URL 複製 **GIST_ID**（URL 最後那段英數字）
+- [x] 從 URL 複製 **GIST_ID**（URL 最後那段英數字）
 
 ### GitHub Personal Access Token
-- [ ] GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
-- [ ] Generate new token，勾選 `gist` 權限
-- [ ] 複製並記錄 **GIST_TOKEN**（只會顯示一次）
+
+- [x] GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+- [x] Generate new token，勾選 `gist` 權限
+- [x] 複製並記錄 **GIST_TOKEN**（只會顯示一次）
 
 ### GitHub Secrets 設定
-- [ ] 前往 repo → Settings → Secrets and variables → Actions
-- [ ] 新增以下 4 個 Secret：
+
+- [x] 前往 repo → Settings → Secrets and variables → Actions
+- [x] 新增以下 4 個 Secret：
   ```
   TELEGRAM_BOT_TOKEN  ← Telegram Bot Token
   TELEGRAM_CHAT_ID    ← 你的 Chat ID
@@ -55,15 +59,17 @@
   ```
 
 ### requirements.txt 修正
-- [ ] 移除 `gspread==6.1.2` 和 `google-auth==2.29.0`
-- [ ] 確認最終內容：
+
+- [x] 移除 `gspread==6.1.2` 和 `google-auth==2.29.0`，並且更新 `yfinance` 和 `pandas` 版本
+- [x] 確認最終內容：
   ```
-  yfinance==0.2.55
+  yfinance==1.2.0
   requests==2.32.3
-  pandas==2.2.2
+  pandas==3.0.1
   ```
 
 ### Railway Bot Server 部署
+
 - [ ] 前往 [railway.app](https://railway.app)，用 GitHub 登入
 - [ ] New Project → Deploy from GitHub repo → 選 `options-monitor`
 - [ ] 設定 **Root Directory** 為 `bot`
@@ -71,6 +77,7 @@
 - [ ] 等待部署完成，記錄 Railway 提供的公開 URL
 
 ### 向 Telegram 註冊 Webhook
+
 - [ ] 在瀏覽器開啟以下網址（替換 `<TOKEN>` 和 `<RAILWAY_URL>`）：
   ```
   https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<RAILWAY_URL>/webhook/<TOKEN>
@@ -78,6 +85,7 @@
 - [ ] 確認回傳 `{"ok":true,...,"description":"Webhook was set"}`
 
 ### 驗證系統運作
+
 - [ ] 對 Bot 傳 `/help`，確認收到指令說明
 - [ ] 傳 `/example iron_condor`，確認收到 JSON 模板
 - [ ] GitHub Actions → `盤中即時監控` → `Run workflow` 手動觸發
@@ -89,6 +97,7 @@
 ## ✅ Phase 1｜本週（3/16 週一）：第一筆交易
 
 ### 前置確認
+
 - [ ] 登入 Moomoo 模擬帳戶
 - [ ] 確認期權交易權限等級（需要 Level 3+ 才能賣 Spread）
 
@@ -146,16 +155,19 @@ Strike = GTC 後 NVDA 現價 × 88%
 ## ✅ Phase 3｜每月例行操作
 
 ### 每月第一個交易日
+
 - [ ] 查看 Telegram 有無未處理 ACTION 通知
 - [ ] 上月 IC 到期/獲利 → 開新一輪 IC，`/add` 登記
 - [ ] NVDA CSP 到期/獲利 → 開新一輪 CSP，`/add` 登記
 - [ ] 已平倉部位執行 `/close <id>`
 
 ### 每兩個月（首次約 5 月中）
+
 - [ ] 評估開 QQQ Bull Call Spread
 - [ ] 傳 `/example bull_call` → 開倉後 `/add` 登記
 
 ### NVDA 被 Assign 時
+
 - [ ] Moomoo 確認 1500 股已入帳
 - [ ] 傳 `/assign <id>` → Bot 自動提示 CC 參數
 - [ ] 照提示開 Covered Call（Strike = 成本 × 105%，DTE = 14-21 天）
@@ -174,13 +186,13 @@ Strike = GTC 後 NVDA 現價 × 88%
 
 ## 📋 收到通知的處理 SOP
 
-| 通知 | 處理方式 |
-|------|---------|
-| 🎯 獲利達標 | Moomoo 買回平倉 → `/close <id>` → 開下一輪 |
-| 🛑 停損觸發 | Moomoo 市價買回 → `/close <id>` → 這個月不開新倉 |
-| ⏰ DTE ≤ 7 天 | 有獲利就平倉；OTM 快到期可讓其歸零 |
-| ⚠️ Assignment 風險 | 確認現金充足，或考慮 Roll 展期 |
-| 📊 每日收盤總結 | 看一眼確認無異常，不用操作 |
+| 通知               | 處理方式                                         |
+| ------------------ | ------------------------------------------------ |
+| 🎯 獲利達標        | Moomoo 買回平倉 → `/close <id>` → 開下一輪       |
+| 🛑 停損觸發        | Moomoo 市價買回 → `/close <id>` → 這個月不開新倉 |
+| ⏰ DTE ≤ 7 天      | 有獲利就平倉；OTM 快到期可讓其歸零               |
+| ⚠️ Assignment 風險 | 確認現金充足，或考慮 Roll 展期                   |
+| 📊 每日收盤總結    | 看一眼確認無異常，不用操作                       |
 
 ---
 
@@ -200,4 +212,4 @@ Hedge Put 到期日      : 2026-06-19
 
 ---
 
-*最後更新：2026-03-15*
+_最後更新：2026-03-15_
