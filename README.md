@@ -19,6 +19,15 @@ GitHub Actions cron（每 30 分鐘 / 每日收盤）
 yfinance 抓價格 → 判斷策略規則 → Telegram 通知
 ```
 
+### Telegram Chat 分離設計
+
+| 環境變數 | 用途 |
+|---------|------|
+| `TELEGRAM_CHAT_ID` | Bot 指令回覆對象（你跟 Bot 的私聊） |
+| `TELEGRAM_NOTIFY_CHAT_ID` | cron 定時通知目標（群組或另一個 chat） |
+
+若未設定 `TELEGRAM_NOTIFY_CHAT_ID`，所有通知都會發到 `TELEGRAM_CHAT_ID`（向下相容）。
+
 ---
 
 ## 一、前置準備
@@ -51,23 +60,32 @@ yfinance 抓價格 → 判斷策略規則 → Telegram 通知
 1. 在 Telegram 搜尋 `@BotFather`，傳送 `/newbot`
 2. 依指示建立 bot，取得 **TELEGRAM_BOT_TOKEN**
 3. 對你的 bot 傳一則任意訊息
-4. 開啟以下網址，找到 `chat.id`，這就是 **TELEGRAM_CHAT_ID**
+4. 開啟以下網址，在 JSON 中找 `result[0].message.chat.id`，這就是 **TELEGRAM_CHAT_ID**
    ```
    https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
    ```
+
+### 4. 取得通知頻道的 Chat ID（選用）
+
+若想把定時通知和 Bot 指令分開：
+- 建立一個 Telegram 群組或頻道
+- 將 Bot 加入該群組/頻道
+- 用同樣的 getUpdates 方式取得群組的 **TELEGRAM_NOTIFY_CHAT_ID**
+- 群組的 chat_id 通常是負數（例：`-1001234567890`）
 
 ---
 
 ## 二、GitHub Actions 設定
 
-前往 GitHub repo → **Settings → Secrets and variables → Actions**，新增以下 4 個 Secret：
+前往 GitHub repo → **Settings → Secrets and variables → Actions**，新增以下 Secret：
 
-| Secret 名稱 | 說明 |
-|------------|------|
-| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token |
-| `TELEGRAM_CHAT_ID` | 你的 Telegram Chat ID |
-| `GIST_ID` | GitHub Gist ID |
-| `GIST_TOKEN` | GitHub Personal Access Token（gist 權限） |
+| Secret 名稱 | 說明 | 必填 |
+|------------|------|------|
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token | ✅ |
+| `TELEGRAM_CHAT_ID` | Bot 指令 chat ID | ✅ |
+| `TELEGRAM_NOTIFY_CHAT_ID` | 通知專用 chat ID | ⬜ 選填 |
+| `GIST_ID` | GitHub Gist ID | ✅ |
+| `GIST_TOKEN` | GitHub Personal Access Token（gist 權限） | ✅ |
 
 確保 Actions 頁籤已啟用：Settings → Actions → Allow all actions
 
@@ -77,8 +95,11 @@ yfinance 抓價格 → 判斷策略規則 → Telegram 通知
 
 1. 前往 [railway.app](https://railway.app)，用 GitHub 登入
 2. New Project → Deploy from GitHub repo → 選此 repo
-3. 設定 **Root Directory** 為 `bot`
-4. 新增以下環境變數：
+3. Builder 選 **Dockerfile**
+4. Dockerfile Path 設為 `/bot/Dockerfile`
+5. Root Directory 設為 `bot`
+6. Watch Paths 設為 `/bot/**`
+7. 新增以下環境變數：
 
 | 變數名稱 | 說明 |
 |---------|------|
@@ -86,16 +107,13 @@ yfinance 抓價格 → 判斷策略規則 → Telegram 通知
 | `TELEGRAM_CHAT_ID` | 同上 |
 | `GIST_ID` | 同上 |
 | `GIST_TOKEN` | 同上 |
-| `PORT` | `8080`（Railway 自動注入，可不填） |
 
-5. 部署完成後，取得 Railway 提供的 **公開 URL**（例：`https://options-monitor-xxx.railway.app`）
+8. 部署完成後，取得公開 URL（建議綁定自己的 domain）
 
-### 4. 向 Telegram 註冊 Webhook
-
-在瀏覽器開啟以下網址（替換對應值）：
+### 向 Telegram 註冊 Webhook
 
 ```
-https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<RAILWAY_URL>/webhook/<TELEGRAM_BOT_TOKEN>
+https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<YOUR_DOMAIN>/webhook/<TELEGRAM_BOT_TOKEN>
 ```
 
 成功會回傳：`{"ok":true,"result":true,"description":"Webhook was set"}`
@@ -138,14 +156,14 @@ https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<RAILWAY
 
 ## 五、自動通知說明
 
-| 通知類型 | 觸發條件 | 頻率 |
-|---------|---------|------|
-| 📊 每日收盤總結 | 每交易日 21:15 UTC（4:15 PM EST） | 每天 |
-| 🎯 獲利達標 | P&L ≥ 設定目標 % | 盤中每 30 分鐘 |
-| 🛑 停損警告 | 虧損 ≥ 停損門檻 % | 盤中每 30 分鐘 |
-| ⏰ 快到期提醒 | DTE ≤ 7 天 | 盤中每 30 分鐘 |
-| ⚠️ Assignment 風險 | 股價距 Strike ≤ 5% | 盤中每 30 分鐘 |
-| ⚠️ IC 翼突破 | 股價突破 Short Strike | 盤中每 30 分鐘 |
+| 通知類型 | 觸發條件 | 頻率 | 發送目標 |
+|---------|---------|------|---------|
+| 📊 每日收盤總結 | 每交易日 21:15 UTC（4:15 PM EST） | 每天 | 通知頻道 |
+| 🎯 獲利達標 | P&L ≥ 設定目標 % | 盤中每 30 分鐘 | 通知頻道 |
+| 🛑 停損警告 | 虧損 ≥ 停損門檻 % | 盤中每 30 分鐘 | 通知頻道 |
+| ⏰ 快到期提醒 | DTE ≤ 7 天 | 盤中每 30 分鐘 | 通知頻道 |
+| ⚠️ Assignment 風險 | 股價距 Strike ≤ 5% | 盤中每 30 分鐘 | 通知頻道 |
+| ⚠️ IC 翼突破 | 股價突破 Short Strike | 盤中每 30 分鐘 | 通知頻道 |
 
 盤中監控時段：13:00–21:00 UTC（涵蓋夏令/冬令兩個時段）
 
@@ -206,6 +224,7 @@ pip install -r requirements.txt
 
 export TELEGRAM_BOT_TOKEN="xxx"
 export TELEGRAM_CHAT_ID="xxx"
+export TELEGRAM_NOTIFY_CHAT_ID="xxx"  # 選填，不填則通知發到 CHAT_ID
 export GIST_ID="xxx"
 export GIST_TOKEN="xxx"
 
@@ -215,7 +234,7 @@ python src/monitor.py --mode daily     # 收盤總結測試
 # Go Bot Server
 cd bot
 go mod tidy
-go run main.go
+go run ./cmd/main.go
 ```
 
 ---

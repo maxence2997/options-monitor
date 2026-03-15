@@ -19,7 +19,7 @@
 
 ---
 
-## ✅ Phase 0｜今晚：系統環境建立
+## ✅ Phase 0｜系統環境建立
 
 ### Telegram Bot
 
@@ -30,6 +30,16 @@
   https://api.telegram.org/bot<TOKEN>/getUpdates
   ```
   在回傳的 JSON 中找 `result[0].message.chat.id`，即為你的 Chat ID
+
+### 通知頻道（選填）
+
+- [x] 建立 Telegram 群組或頻道，將 Bot 加入
+- [x] 對群組發一則訊息，再用瀏覽器開啟以下網址取得 `TELEGRAM_NOTIFY_CHAT_ID`（群組 chat_id 通常為負數）：
+  ```
+  https://api.telegram.org/bot<TOKEN>/getUpdates
+  ```
+  在回傳的 JSON 中找 `result[0].message.chat.id`，即為你的 Notify Chat ID
+  > 未設定時，所有通知都會發到 TELEGRAM_CHAT_ID（向下相容）
 
 ### GitHub Gist（資料庫）
 
@@ -43,29 +53,27 @@
       "last_update": ""
     }
     ```
-- [x] 從 URL 複製 **GIST_ID**（URL 最後那段英數字）
+- [x] 從 URL 複製 **GIST_ID**
 
 ### GitHub Personal Access Token
 
 - [x] GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
-- [x] Generate new token，勾選 `gist` 權限
-- [x] 複製並記錄 **GIST_TOKEN**（只會顯示一次）
+- [x] Generate new token，勾選 `gist` 權限，記錄 **GIST_TOKEN**
 
 ### GitHub Secrets 設定
 
-- [x] 前往 repo → Settings → Secrets and variables → Actions
-- [x] 新增以下 4 個 Secret：
+- [x] 前往 repo → Settings → Secrets and variables → Actions，新增：
   ```
-  TELEGRAM_BOT_TOKEN  ← Telegram Bot Token
-  TELEGRAM_CHAT_ID    ← 你的 Chat ID
-  GIST_ID             ← Gist ID
-  GIST_TOKEN          ← Personal Access Token
+  TELEGRAM_BOT_TOKEN       ← Bot Token
+  TELEGRAM_CHAT_ID         ← 指令 chat ID
+  TELEGRAM_NOTIFY_CHAT_ID  ← 通知 chat ID（選填）
+  GIST_ID                  ← Gist ID
+  GIST_TOKEN               ← Personal Access Token
   ```
 
-### requirements.txt 修正
+### requirements.txt
 
-- [x] 移除 `gspread==6.1.2` 和 `google-auth==2.29.0`，並且更新 `yfinance` 和 `pandas` 版本
-- [x] 確認最終內容：
+- [x] 確認內容：
   ```
   yfinance==1.2.0
   requests==2.32.3
@@ -76,15 +84,16 @@
 
 - [x] 前往 [railway.app](https://railway.app)，用 GitHub 登入
 - [x] New Project → Deploy from GitHub repo → 選 `options-monitor`
-- [x] 設定 **Root Directory** 為 `bot`
-- [x] 新增環境變數（同 GitHub Secrets 的 4 個）
-- [x] 等待部署完成，記錄 Railway 提供的公開 URL
+- [x] Builder 選 **Dockerfile**，Dockerfile Path 設 `/bot/Dockerfile`
+- [x] Root Directory 設為 `bot`，Watch Paths 設為 `/bot/**`
+- [x] 新增環境變數（TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID / GIST_ID / GIST_TOKEN）
+- [x] 等待部署完成，記錄公開 URL
 
 ### 向 Telegram 註冊 Webhook
 
-- [x] 在瀏覽器開啟以下網址（替換 `<TOKEN>` 和 `<RAILWAY_URL>`）：
+- [x] 開啟以下網址（替換 `<TOKEN>` 和 `<URL>`）：
   ```
-  https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<RAILWAY_URL>/webhook/<TOKEN>
+  https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<URL>/webhook/<TOKEN>
   ```
 - [x] 確認回傳 `{"ok":true,...,"description":"Webhook was set"}`
 
@@ -92,9 +101,8 @@
 
 - [x] 對 Bot 傳 `/help`，確認收到指令說明
 - [x] 傳 `/example iron_condor`，確認收到 JSON 模板
-- [x] GitHub Actions → `盤中即時監控` → `Run workflow` 手動觸發
-- [x] 確認 Actions 執行成功（綠色勾勾）
-- [x] 確認 Telegram 收到監控訊息
+- [x] GitHub Actions → `每日收盤總結` → `Run workflow` 手動觸發
+- [x] 確認 **通知頻道** 收到「目前無開放持倉」訊息
 
 ---
 
@@ -160,7 +168,7 @@ Strike = GTC 後 NVDA 現價 × 88%
 
 ### 每月第一個交易日
 
-- [ ] 查看 Telegram 有無未處理 ACTION 通知
+- [ ] 查看**通知頻道**有無未處理 ACTION 通知
 - [ ] 上月 IC 到期/獲利 → 開新一輪 IC，`/add` 登記
 - [ ] NVDA CSP 到期/獲利 → 開新一輪 CSP，`/add` 登記
 - [ ] 已平倉部位執行 `/close <id>`
@@ -203,15 +211,16 @@ Strike = GTC 後 NVDA 現價 × 88%
 ## 🔑 重要參數記錄
 
 ```
-Telegram Bot Token    : ______________________________
-Telegram Chat ID      : ______________________________
-GitHub Gist ID        : ______________________________
-Railway URL           : ______________________________
-GitHub Repo           : https://github.com/maxence2997/options-monitor
+Telegram Bot Token        : ______________________________
+Telegram Chat ID（指令）  : ______________________________
+Telegram Chat ID（通知）  : ______________________________
+GitHub Gist ID            : ______________________________
+Railway URL               : ______________________________
+GitHub Repo               : https://github.com/maxence2997/options-monitor
 
-首次 SPY IC 開倉日    : 2026-03-16
-首次 NVDA CSP 開倉日  : GTC 後（預計 2026-03-20）
-Hedge Put 到期日      : 2026-06-19
+首次 SPY IC 開倉日        : 2026-03-16
+首次 NVDA CSP 開倉日      : GTC 後（預計 2026-03-20）
+Hedge Put 到期日          : 2026-06-19
 ```
 
 ---
