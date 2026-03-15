@@ -1,225 +1,232 @@
 # 🤖 期權模擬競賽監控系統
 
-自動監控 SPY/QQQ Iron Condor + NVDA Wheel 策略，每天發 Telegram 通知。
+自動監控 SPY Iron Condor + NVDA Wheel + QQQ Bull Call Spread 策略，
+透過 Telegram Bot 管理持倉，每 30 分鐘自動發送監控通知。
 
 ---
 
 ## 架構總覽
 
 ```
-Google Sheet（你填持倉）
-       ↓
-GitHub Actions（cron 定時觸發）
-       ↓
-Python 腳本（yfinance 抓價格 + 判斷策略規則）
-       ↓
-Telegram Bot（通知你該做什麼）
-       ↓
-Google Sheet（自動回填即時數據）
+你傳指令給 Telegram Bot（/add /list /close /assign）
+        ↓
+Railway Bot Server（Go + Gin，24hr 在線）
+        ↓ 讀寫
+GitHub Gist（positions.json，輕量資料庫）
+        ↑ 讀取
+GitHub Actions cron（每 30 分鐘 / 每日收盤）
+        ↓
+yfinance 抓價格 → 判斷策略規則 → Telegram 通知
 ```
 
 ---
 
-## 一、Google Sheet 設定
+## 一、前置準備
 
-### 1. 建立試算表，新增三個工作表
+### 1. 建立 GitHub Gist（當資料庫）
 
-#### 工作表一：`Positions`（主要操作頁面）
+1. 前往 [gist.github.com](https://gist.github.com)
+2. 建立一個新的 **Secret Gist**
+   - Filename：`positions.json`
+   - Content：貼上以下初始內容
+     ```json
+     {
+       "positions": [],
+       "next_id": 1,
+       "last_update": ""
+     }
+     ```
+3. 從 Gist URL 取得 **GIST_ID**
+   - URL 格式：`https://gist.github.com/你的帳號/`**`abc123def456`**
+   - 最後那段就是 GIST_ID
 
-| 欄位              | 說明                   | 範例                                                              |
-| ----------------- | ---------------------- | ----------------------------------------------------------------- |
-| ID                | 自訂流水號             | 1, 2, 3...                                                        |
-| STRATEGY          | 策略類型               | WHEEL_CSP / WHEEL_CC / IRON_CONDOR / BULL_CALL_SPREAD / HEDGE_PUT |
-| SYMBOL            | 標的                   | SPY / QQQ / NVDA                                                  |
-| STATUS            | 狀態                   | OPEN（你填）/ CLOSED / ASSIGNED（系統會更新）                     |
-| OPEN_DATE         | 開倉日期               | 2025-03-17                                                        |
-| EXPIRY            | 到期日                 | 2025-04-18                                                        |
-| DTE               | 剩餘天數               | ← 系統自動填                                                      |
-| CONTRACTS         | 張數                   | 1                                                                 |
-| STRIKE_SELL       | 賣出 Strike            | 480（CSP/CC 的 short strike；IC 填 Put Short）                    |
-| STRIKE_BUY        | 買入 Strike            | 460（Spread 的保護腳；單腳策略留空）                              |
-| PREMIUM_RECEIVED  | 收到的 premium（每股） | 3.50（CSP/CC/IC 為正；買方策略填負數 -2.00）                      |
-| PREMIUM_CURRENT   | 現值                   | ← 系統自動填                                                      |
-| PNL_USD           | P&L 金額               | ← 系統自動填                                                      |
-| PNL_PCT           | P&L %                  | ← 系統自動填                                                      |
-| PROFIT_TARGET_PCT | 獲利目標 %             | 50（預設值，可自訂）                                              |
-| LOSS_LIMIT_PCT    | 停損 %                 | 200（預設；NVDA CSP 建議填 300）                                  |
-| STOCK_PRICE       | 標的現價               | ← 系統自動填                                                      |
-| DISTANCE_PCT      | 距 Strike 距離 %       | ← 系統自動填                                                      |
-| NOTES             | 備注                   | IC 請加上 call_short=520（Call Short Strike）                     |
-| LAST_UPDATED      | 最後更新               | ← 系統自動填                                                      |
+### 2. 建立 GitHub Personal Access Token
 
-> ⚠️ **Iron Condor 特別說明**：  
-> STRIKE_SELL = Put Short，STRIKE_BUY = Put Long  
-> Call 側的兩個 Strike 填在 NOTES，格式：`call_short=520 | call_buy=535`
+1. GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Generate new token，勾選 **`gist`** 權限
+3. 複製 token 存好（只會顯示一次），這就是 **GIST_TOKEN**
 
----
+### 3. 建立 Telegram Bot
 
-#### 工作表二：`Settings`
-
-兩欄：KEY、VALUE
-
-| KEY               | VALUE      | 說明       |
-| ----------------- | ---------- | ---------- |
-| INITIAL_CAPITAL   | 1000000    | 初始資金   |
-| COMPETITION_START | 2025-03-17 | 比賽開始日 |
-| COMPETITION_END   | 2025-09-15 | 比賽結束日 |
+1. 在 Telegram 搜尋 `@BotFather`，傳送 `/newbot`
+2. 依指示建立 bot，取得 **TELEGRAM_BOT_TOKEN**
+3. 對你的 bot 傳一則任意訊息
+4. 開啟以下網址，找到 `chat.id`，這就是 **TELEGRAM_CHAT_ID**
+   ```
+   https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
+   ```
 
 ---
 
-#### 工作表三：`Log`（系統自動寫入，你只需觀看）
+## 二、GitHub Actions 設定
 
-欄位：TIMESTAMP、TYPE、SYMBOL、STRATEGY、MESSAGE
+前往 GitHub repo → **Settings → Secrets and variables → Actions**，新增以下 4 個 Secret：
 
----
+| Secret 名稱 | 說明 |
+|------------|------|
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token |
+| `TELEGRAM_CHAT_ID` | 你的 Telegram Chat ID |
+| `GIST_ID` | GitHub Gist ID |
+| `GIST_TOKEN` | GitHub Personal Access Token（gist 權限） |
 
-### 2. 開放 Google Sheet API 存取
-
-1. 前往 [Google Cloud Console](https://console.cloud.google.com)
-2. 建立新專案（或使用現有）
-3. 啟用 **Google Sheets API** 和 **Google Drive API**
-4. 建立服務帳戶（Service Account）
-   - IAM & Admin → Service Accounts → Create
-   - 角色選 Editor
-5. 下載 JSON 金鑰（Actions → Manage keys → Add key → JSON）
-6. 將服務帳戶 email 加入試算表的共用對象（編輯者權限）
+確保 Actions 頁籤已啟用：Settings → Actions → Allow all actions
 
 ---
 
-## 二、Telegram Bot 設定
+## 三、Railway Bot Server 部署
 
-1. 在 Telegram 搜尋 `@BotFather`
-2. 傳送 `/newbot`，依指示建立 bot，取得 **BOT_TOKEN**
-3. 對你的 bot 傳一則訊息
-4. 開啟 `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates`
-5. 找到 `chat.id`，這就是你的 **CHAT_ID**
+1. 前往 [railway.app](https://railway.app)，用 GitHub 登入
+2. New Project → Deploy from GitHub repo → 選此 repo
+3. 設定 **Root Directory** 為 `bot`
+4. 新增以下環境變數：
 
----
+| 變數名稱 | 說明 |
+|---------|------|
+| `TELEGRAM_BOT_TOKEN` | 同上 |
+| `TELEGRAM_CHAT_ID` | 同上 |
+| `GIST_ID` | 同上 |
+| `GIST_TOKEN` | 同上 |
+| `PORT` | `8080`（Railway 自動注入，可不填） |
 
-## 三、GitHub 設定
+5. 部署完成後，取得 Railway 提供的 **公開 URL**（例：`https://options-monitor-xxx.railway.app`）
 
-### 1. Fork/Clone 此 repo
+### 4. 向 Telegram 註冊 Webhook
 
-```bash
-git clone https://github.com/你的帳號/options-monitor.git
-cd options-monitor
+在瀏覽器開啟以下網址（替換對應值）：
+
+```
+https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<RAILWAY_URL>/webhook/<TELEGRAM_BOT_TOKEN>
 ```
 
-### 2. 設定 Secrets
-
-前往 GitHub repo → Settings → Secrets and variables → Actions → New repository secret
-
-| Secret 名稱               | 值                                    |
-| ------------------------- | ------------------------------------- |
-| `TELEGRAM_BOT_TOKEN`      | 你的 Telegram Bot Token               |
-| `TELEGRAM_CHAT_ID`        | 你的 Telegram Chat ID                 |
-| `GOOGLE_CREDENTIALS_JSON` | 服務帳戶 JSON 金鑰（完整內容，含 {}） |
-| `GOOGLE_SHEET_ID`         | 試算表 URL 中間的那串 ID              |
-
-> 📌 Google Sheet ID 範例：  
-> URL: `https://docs.google.com/spreadsheets/d/`**`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms`**`/edit`  
-> ID 就是中間粗體那段
-
-### 3. 啟用 GitHub Actions
-
-確保 repo 的 Actions 頁籤是啟用狀態（Settings → Actions → Allow all actions）
+成功會回傳：`{"ok":true,"result":true,"description":"Webhook was set"}`
 
 ---
 
-## 四、通知時機說明
+## 四、Telegram Bot 指令說明
 
-| 通知類型           | 觸發條件                     | 頻率       |
-| ------------------ | ---------------------------- | ---------- |
-| 📊 每日收盤總結    | 每個交易日收盤後 4:15 PM EST | 每天       |
-| ⏰ 快到期提醒      | DTE ≤ 7 天                   | 盤中監控時 |
-| 🎯 獲利達標        | P&L ≥ 設定目標%              | 盤中監控時 |
-| 🛑 停損警告        | 虧損 ≥ 停損門檻%             | 盤中監控時 |
-| ⚠️ Assignment 風險 | 股價距 Strike ≤ 5%           | 盤中監控時 |
-| ⚠️ IC 翼突破       | 股價突破 Short Strike        | 盤中監控時 |
+| 指令 | 說明 |
+|------|------|
+| `/help` | 顯示完整指令說明與範例 |
+| `/example <策略>` | 取得該策略的 JSON 填寫模板 |
+| `/add {json}` | 新增持倉（貼上修改後的 JSON） |
+| `/list` | 列出所有 OPEN 持倉 |
+| `/close <id>` | 將持倉標記為 CLOSED |
+| `/assign <id>` | 標記被 Assign，自動提示開 CC |
+| `/pnl` | 查看持倉損益快照 |
+
+### 支援的策略名稱（用於 /example）
+
+| 輸入 | 策略 |
+|------|------|
+| `wheel_csp` | NVDA 賣 Put（Wheel 第一步） |
+| `wheel_cc` | NVDA 賣 Call（Assign 後） |
+| `iron_condor` | SPY Iron Condor |
+| `bull_call` | QQQ Bull Call Spread |
+| `hedge` | SPY OTM Put 黑天鵝對沖 |
+
+### 新增持倉流程
+
+```
+1. 傳 /example iron_condor
+2. Bot 回傳 JSON 模板（含 /add 前綴）
+3. 複製整段，修改數字（strike、expiry、premium 等）
+4. 直接貼回 Telegram 傳送
+5. Bot 確認新增成功，下次 cron 開始監控
+```
 
 ---
 
-## 五、策略 SOP 快速參考
+## 五、自動通知說明
+
+| 通知類型 | 觸發條件 | 頻率 |
+|---------|---------|------|
+| 📊 每日收盤總結 | 每交易日 21:15 UTC（4:15 PM EST） | 每天 |
+| 🎯 獲利達標 | P&L ≥ 設定目標 % | 盤中每 30 分鐘 |
+| 🛑 停損警告 | 虧損 ≥ 停損門檻 % | 盤中每 30 分鐘 |
+| ⏰ 快到期提醒 | DTE ≤ 7 天 | 盤中每 30 分鐘 |
+| ⚠️ Assignment 風險 | 股價距 Strike ≤ 5% | 盤中每 30 分鐘 |
+| ⚠️ IC 翼突破 | 股價突破 Short Strike | 盤中每 30 分鐘 |
+
+盤中監控時段：13:00–21:00 UTC（涵蓋夏令/冬令兩個時段）
+
+---
+
+## 六、策略 SOP 快速參考
 
 ### Wheel（NVDA）
 
 ```
-1. 開倉 CSP：
-   - Strike = 現價 × 88%
-   - DTE = 21-30 天
-   - 最多 2 張
-   - 填入 Sheet（STATUS=OPEN, STRATEGY=WHEEL_CSP）
+開倉 CSP：
+  Strike = 現價 × 88%，DTE = 21-30 天，15 張
 
-2. 收到通知「獲利 50%」→ 買回平倉，立刻開下一輪
+收到「獲利 50%」通知 → Moomoo 買回平倉 → /close <id> → 開下一輪
 
-3. 到期未被 Assign → 下一輪 CSP
+到期未被 Assign → 重複開 CSP
 
-4. 被 Assign（股票入帳）→ 改開 CC：
-   - Status 改 ASSIGNED，新增一筆 WHEEL_CC
-   - Strike = 成本價 × 105%，DTE = 14-21 天
+被 Assign → Moomoo 接股票 → /assign <id>
+         → Bot 自動提示 CC 參數
+         → 開 CC（Strike = 成本 × 105%，DTE = 14-21 天）
+         → /add 登記新的 CC 持倉
 ```
 
 ### Iron Condor（SPY）
 
 ```
-1. 每月第一個交易日開倉：
-   - Put Short = 現價 × 94%
-   - Put Long  = 現價 × 91%
-   - Call Short = 現價 × 106%
-   - Call Long  = 現價 × 109%
-   - DTE = 30-45 天
-   - NOTES 填入 call_short=XXX
+每月第一個交易日開倉（30-45 DTE）：
+  Put Short  = 現價 × 94%
+  Put Long   = 現價 × 91%
+  Call Short = 現價 × 106%（填在 notes: call_short=XXX）
+  Call Long  = 現價 × 109%（填在 notes: call_buy=XXX）
+  20 張
 
-2. 收到通知「獲利 50%」→ 整組平倉，等下月
-
-3. 收到通知「停損」→ 整組平倉
-
-4. DTE ≤ 7 天且有獲利 → 平倉，不冒 Gamma 風險
+收到「獲利 50%」→ 整組平倉，等下月
+收到「停損 200%」→ 整組平倉
+DTE ≤ 7 天且有獲利 → 平倉，不冒 Gamma 風險
 ```
 
-### Bull Call Spread（QQQ，方向性押注）
+### Bull Call Spread（QQQ）
 
 ```
-1. 每 2 個月開倉一次：
-   - 買 ATM Call（STRIKE_SELL）
-   - 賣 OTM +10% Call（STRIKE_BUY）
-   - PREMIUM_RECEIVED 填負數（你付出的錢，例 -3.50）
-   - DTE = 45-60 天
+每 2 個月開倉（45-60 DTE），10 張：
+  買 ATM Call（strike_sell）
+  賣 +10% Call（strike_buy）
+  premium_received 填負數（付出的成本）
 
-2. 收到通知「獲利 100%」→ 平倉
-3. 收到通知「停損 100%」→ 平倉（最多虧 premium）
+獲利 100% → 平倉
+虧損 100% → 平倉（最大虧損 = premium 本金）
 ```
 
 ---
 
-## 六、本地測試
+## 七、本地測試
 
 ```bash
-# 安裝依賴
+# Python 監控腳本
 pip install -r requirements.txt
 
-# 設定環境變數（或建立 .env 檔）
 export TELEGRAM_BOT_TOKEN="xxx"
 export TELEGRAM_CHAT_ID="xxx"
-export GOOGLE_CREDENTIALS_JSON='{"type": "service_account", ...}'
-export GOOGLE_SHEET_ID="xxx"
+export GIST_ID="xxx"
+export GIST_TOKEN="xxx"
 
-# 執行盤中監控（測試用）
-python src/monitor.py --mode intraday
+python src/monitor.py --mode intraday  # 盤中測試
+python src/monitor.py --mode daily     # 收盤總結測試
 
-# 執行每日總結
-python src/monitor.py --mode daily
+# Go Bot Server
+cd bot
+go mod tidy
+go run main.go
 ```
 
 ---
 
-## 七、費用估算
+## 八、費用估算
 
-| 服務              | 費用                       |
-| ----------------- | -------------------------- |
-| GitHub Actions    | 免費（public repo 無上限） |
-| Google Sheets API | 免費                       |
-| yfinance          | 免費                       |
-| Telegram Bot      | 免費                       |
-| **總計**          | **$0 / 月**                |
-# options-monitor
+| 服務 | 費用 |
+|------|------|
+| GitHub Actions | 免費（public repo） |
+| GitHub Gist | 免費 |
+| yfinance | 免費 |
+| Telegram Bot | 免費 |
+| Railway | 免費額度內（約 $0） |
+| **總計** | **$0 / 月** |
