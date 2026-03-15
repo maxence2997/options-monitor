@@ -114,15 +114,15 @@ func (h *CommandHandler) handleExample(text string) string {
 	switch strategy {
 	case "wheel_csp":
 		template = map[string]interface{}{
-			"strategy":         "WHEEL_CSP",
-			"symbol":           "NVDA",
-			"expiry":           expiry,
-			"contracts":        15,
-			"strike_sell":      158.00,
-			"premium_received": 3.50,
+			"strategy":          "WHEEL_CSP",
+			"symbol":            "NVDA",
+			"expiry":            expiry,
+			"contracts":         15,
+			"strike_sell":       158.00,
+			"premium_received":  3.50,
 			"profit_target_pct": 50,
-			"loss_limit_pct":   300,
-			"notes":            "",
+			"loss_limit_pct":    300,
+			"notes":             "",
 		}
 		note = "💡 <b>NVDA CSP 填寫提示</b>\n" +
 			"• strike_sell = 現價 × 88%（例：現價 $180 → strike $158）\n" +
@@ -131,15 +131,15 @@ func (h *CommandHandler) handleExample(text string) string {
 
 	case "wheel_cc":
 		template = map[string]interface{}{
-			"strategy":         "WHEEL_CC",
-			"symbol":           "NVDA",
-			"expiry":           expiry,
-			"contracts":        15,
-			"strike_sell":      195.00,
-			"premium_received": 2.80,
+			"strategy":          "WHEEL_CC",
+			"symbol":            "NVDA",
+			"expiry":            expiry,
+			"contracts":         15,
+			"strike_sell":       195.00,
+			"premium_received":  2.80,
 			"profit_target_pct": 50,
-			"loss_limit_pct":   200,
-			"notes":            "assigned_cost=158.00",
+			"loss_limit_pct":    200,
+			"notes":             "assigned_cost=158.00",
 		}
 		note = "💡 <b>NVDA CC 填寫提示</b>\n" +
 			"• strike_sell = 被 Assign 成本價 × 105%\n" +
@@ -147,16 +147,16 @@ func (h *CommandHandler) handleExample(text string) string {
 
 	case "iron_condor":
 		template = map[string]interface{}{
-			"strategy":         "IRON_CONDOR",
-			"symbol":           "SPY",
-			"expiry":           nextFriday(today.AddDate(0, 0, 35)),
-			"contracts":        20,
-			"strike_sell":      622.00,
-			"strike_buy":       602.00,
-			"premium_received": 2.50,
+			"strategy":          "IRON_CONDOR",
+			"symbol":            "SPY",
+			"expiry":            nextFriday(today.AddDate(0, 0, 35)),
+			"contracts":         20,
+			"strike_sell":       622.00,
+			"strike_buy":        602.00,
+			"premium_received":  2.50,
 			"profit_target_pct": 50,
-			"loss_limit_pct":   200,
-			"notes":            "call_short=702 | call_buy=722",
+			"loss_limit_pct":    200,
+			"notes":             "call_short=702 | call_buy=722",
 		}
 		note = "💡 <b>SPY Iron Condor 填寫提示</b>\n" +
 			"• strike_sell = Put Short（現價 × 94%）\n" +
@@ -166,16 +166,16 @@ func (h *CommandHandler) handleExample(text string) string {
 
 	case "bull_call":
 		template = map[string]interface{}{
-			"strategy":         "BULL_CALL_SPREAD",
-			"symbol":           "QQQ",
-			"expiry":           nextFriday(today.AddDate(0, 0, 50)),
-			"contracts":        10,
-			"strike_sell":      595.00,
-			"strike_buy":       655.00,
-			"premium_received": -3.20,
+			"strategy":          "BULL_CALL_SPREAD",
+			"symbol":            "QQQ",
+			"expiry":            nextFriday(today.AddDate(0, 0, 50)),
+			"contracts":         10,
+			"strike_sell":       595.00,
+			"strike_buy":        655.00,
+			"premium_received":  -3.20,
 			"profit_target_pct": 100,
-			"loss_limit_pct":   100,
-			"notes":            "",
+			"loss_limit_pct":    100,
+			"notes":             "",
 		}
 		note = "💡 <b>QQQ Bull Call Spread 填寫提示</b>\n" +
 			"• strike_sell = 買入的 Call（ATM 附近）\n" +
@@ -185,15 +185,15 @@ func (h *CommandHandler) handleExample(text string) string {
 
 	case "hedge":
 		template = map[string]interface{}{
-			"strategy":         "HEDGE_PUT",
-			"symbol":           "SPY",
-			"expiry":           nextFriday(today.AddDate(0, 3, 0)),
-			"contracts":        5,
-			"strike_sell":      563.00,
-			"premium_received": -1.80,
+			"strategy":          "HEDGE_PUT",
+			"symbol":            "SPY",
+			"expiry":            nextFriday(today.AddDate(0, 3, 0)),
+			"contracts":         5,
+			"strike_sell":       563.00,
+			"premium_received":  -1.80,
 			"profit_target_pct": 200,
-			"loss_limit_pct":   100,
-			"notes":            "black_swan_hedge",
+			"loss_limit_pct":    100,
+			"notes":             "black_swan_hedge",
 		}
 		note = "💡 <b>SPY Hedge Put 填寫提示</b>\n" +
 			"• strike_sell = 現價 × 85%（深度 OTM）\n" +
@@ -282,16 +282,14 @@ func (h *CommandHandler) handleList() string {
 			dteWarning = " ⏰"
 		}
 
-		sb.WriteString(fmt.Sprintf(
-			"<b>[%d] %s %s</b>%s\n"+
-				"  Strike: %.0f%s | 到期: %s（%d天）\n"+
-				"  %d張 | Premium: %.2f | 目標: %.0f%% 停損: %.0f%%\n",
+		fmt.Fprintf(&sb, "<b>[%d] %s %s</b>%s\n"+
+			"  Strike: %.0f%s | 到期: %s（%d天）\n"+
+			"  %d張 | Premium: %.2f | 目標: %.0f%% 停損: %.0f%%\n",
 			p.ID, p.Symbol, p.Strategy, dteWarning,
 			p.StrikeSell, strikeRangeStr(&p),
 			p.Expiry, daysLeft,
 			p.Contracts, p.PremiumReceived,
-			p.ProfitTargetPct, p.LossLimitPct,
-		))
+			p.ProfitTargetPct, p.LossLimitPct)
 		if p.Notes != "" {
 			sb.WriteString(fmt.Sprintf("  📝 %s\n", p.Notes))
 		}
