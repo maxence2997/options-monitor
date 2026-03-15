@@ -36,6 +36,7 @@ def run_monitor(mode: str = "intraday"):
     all_alerts     = []
     positions_data = []
     price_updates  = []
+    price_data_map = {}   # position_id → prices，傳給 send_alerts 顯示細節
     total_pnl      = 0.0
 
     for pos in positions:
@@ -67,6 +68,9 @@ def run_monitor(mode: str = "intraday"):
                 "distance_pct":    prices["distance_pct"],
                 "dte":             prices["dte"],
             })
+
+            # 存起來讓通知訊息可以顯示現價細節
+            price_data_map[str(pos_id)] = prices
 
             sheet_pos = {
                 "SYMBOL":            symbol,
@@ -104,7 +108,7 @@ def run_monitor(mode: str = "intraday"):
 
     if all_alerts:
         print(f"發送 {len(all_alerts)} 個通知...")
-        send_alerts(all_alerts)
+        send_alerts(all_alerts, price_data_map=price_data_map)
 
     if mode == "daily":
         send_daily_summary(positions_data, total_pnl, INITIAL_CAPITAL)
