@@ -2,33 +2,25 @@ name: 盤中即時監控
 
 on:
   schedule:
-    # 美股盤中每半小時檢查一次：週一到週五 13:00-21:00 UTC
-    # (= 美東時間 9:00 AM - 5:00 PM，涵蓋完整交易時段，考量到冬令和夏令時間的變化)
     - cron: "0,30 13-21 * * 1-5"
-  workflow_dispatch:  # 允許手動觸發測試
+  workflow_dispatch:
 
 jobs:
   intraday-monitor:
     runs-on: ubuntu-latest
     timeout-minutes: 8
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
+      - run: pip install -r requirements.txt
       - name: 執行盤中監控
         env:
-          TELEGRAM_BOT_TOKEN:      ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID:        ${{ secrets.TELEGRAM_CHAT_ID }}
-          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-          GOOGLE_SHEET_ID:         ${{ secrets.GOOGLE_SHEET_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          GIST_ID:            ${{ secrets.GIST_ID }}
+          GIST_TOKEN:         ${{ secrets.GIST_TOKEN }}
+          INITIAL_CAPITAL:    "1000000"
         run: python src/monitor.py --mode intraday
