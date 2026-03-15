@@ -25,7 +25,11 @@
 
 - [x] 搜尋 `@BotFather`，輸入 `/newbot` 建立 Bot
 - [x] 記錄 `TELEGRAM_BOT_TOKEN`
-- [x] 對 Bot 發一則訊息，取得 `TELEGRAM_CHAT_ID`
+- [x] 對 Bot 發一則訊息，再用瀏覽器開啟以下網址取得 `TELEGRAM_CHAT_ID`：
+  ```
+  https://api.telegram.org/bot<TOKEN>/getUpdates
+  ```
+  在回傳的 JSON 中找 `result[0].message.chat.id`，即為你的 Chat ID
 
 ### GitHub Gist（資料庫）
 
@@ -70,27 +74,27 @@
 
 ### Railway Bot Server 部署
 
-- [X] 前往 [railway.app](https://railway.app)，用 GitHub 登入
-- [X] New Project → Deploy from GitHub repo → 選 `options-monitor`
-- [X] 設定 **Root Directory** 為 `bot`
-- [X] 新增環境變數（同 GitHub Secrets 的 4 個）
-- [ ] 等待部署完成，記錄 Railway 提供的公開 URL
+- [x] 前往 [railway.app](https://railway.app)，用 GitHub 登入
+- [x] New Project → Deploy from GitHub repo → 選 `options-monitor`
+- [x] 設定 **Root Directory** 為 `bot`
+- [x] 新增環境變數（同 GitHub Secrets 的 4 個）
+- [x] 等待部署完成，記錄 Railway 提供的公開 URL
 
 ### 向 Telegram 註冊 Webhook
 
-- [ ] 在瀏覽器開啟以下網址（替換 `<TOKEN>` 和 `<RAILWAY_URL>`）：
+- [x] 在瀏覽器開啟以下網址（替換 `<TOKEN>` 和 `<RAILWAY_URL>`）：
   ```
   https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<RAILWAY_URL>/webhook/<TOKEN>
   ```
-- [ ] 確認回傳 `{"ok":true,...,"description":"Webhook was set"}`
+- [x] 確認回傳 `{"ok":true,...,"description":"Webhook was set"}`
 
 ### 驗證系統運作
 
-- [ ] 對 Bot 傳 `/help`，確認收到指令說明
-- [ ] 傳 `/example iron_condor`，確認收到 JSON 模板
-- [ ] GitHub Actions → `盤中即時監控` → `Run workflow` 手動觸發
-- [ ] 確認 Actions 執行成功（綠色勾勾）
-- [ ] 確認 Telegram 收到監控訊息
+- [x] 對 Bot 傳 `/help`，確認收到指令說明
+- [x] 傳 `/example iron_condor`，確認收到 JSON 模板
+- [x] GitHub Actions → `盤中即時監控` → `Run workflow` 手動觸發
+- [x] 確認 Actions 執行成功（綠色勾勾）
+- [x] 確認 Telegram 收到監控訊息
 
 ---
 
