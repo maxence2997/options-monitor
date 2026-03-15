@@ -70,10 +70,10 @@
 
 ### Railway Bot Server 部署
 
-- [ ] 前往 [railway.app](https://railway.app)，用 GitHub 登入
-- [ ] New Project → Deploy from GitHub repo → 選 `options-monitor`
-- [ ] 設定 **Root Directory** 為 `bot`
-- [ ] 新增環境變數（同 GitHub Secrets 的 4 個）
+- [X] 前往 [railway.app](https://railway.app)，用 GitHub 登入
+- [X] New Project → Deploy from GitHub repo → 選 `options-monitor`
+- [X] 設定 **Root Directory** 為 `bot`
+- [X] 新增環境變數（同 GitHub Secrets 的 4 個）
 - [ ] 等待部署完成，記錄 Railway 提供的公開 URL
 
 ### 向 Telegram 註冊 Webhook

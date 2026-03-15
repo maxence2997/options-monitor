@@ -287,7 +287,7 @@ func (h *CommandHandler) handleList() string {
 				"  Strike: %.0f%s | 到期: %s（%d天）\n"+
 				"  %d張 | Premium: %.2f | 目標: %.0f%% 停損: %.0f%%\n",
 			p.ID, p.Symbol, p.Strategy, dteWarning,
-			p.StrikeSell, strikeRangeStr(p),
+			p.StrikeSell, strikeRangeStr(&p),
 			p.Expiry, daysLeft,
 			p.Contracts, p.PremiumReceived,
 			p.ProfitTargetPct, p.LossLimitPct,
@@ -426,7 +426,7 @@ func parseID(text, cmd string) (int, error) {
 	return id, nil
 }
 
-func strikeRangeStr(p model.Position) string {
+func strikeRangeStr(p *model.Position) string {
 	if p.StrikeBuy > 0 {
 		return fmt.Sprintf(" / %.0f", p.StrikeBuy)
 	}
