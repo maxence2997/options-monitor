@@ -91,18 +91,36 @@ DTE    = 14-21 天
 ```
 
 **Wheel 循環示意：**
-```
-開 CSP（收 premium）
-    ↓
-未被 Assign → 重複開 CSP ←──────────────────┐
-    ↓                                         │
-被 Assign（接股票）                           │
-    ↓                                         │
-開 CC（收 premium）                           │
-    ↓                                         │
-未被 Assign → 繼續開 CC                       │
-    ↓                                         │
-被 Assign（股票賣出）→ 回到起點 ──────────────┘
+
+```mermaid
+flowchart TD
+    START([開始]) --> OPEN_CSP
+
+    OPEN_CSP["開 CSP<br>Strike = 現價 × 88%<br>DTE 21-30 天，15 張"]
+
+    OPEN_CSP --> CSP_CHECK{持倉中...}
+
+    CSP_CHECK -->|"獲利達 50%"| CSP_PROFIT["平倉鎖利"]
+    CSP_CHECK -->|"到期 OTM"| CSP_EXPIRE["到期歸零，全賺 premium"]
+    CSP_CHECK -->|"停損達 300%"| STOP(["本月停止操作"])
+    CSP_CHECK -->|"被 Assign<br>股票跌破 Strike"| ASSIGNED["接收 1500 股 NVDA"]
+
+    CSP_PROFIT -->|"進入下一輪 CSP"| OPEN_CSP
+    CSP_EXPIRE -->|"進入下一輪 CSP"| OPEN_CSP
+
+    ASSIGNED -->|"進入 CC"| OPEN_CC
+
+    OPEN_CC["開 CC<br>Strike = 成本 × 105%<br>DTE 14-21 天，15 張"]
+
+    OPEN_CC --> CC_CHECK{持倉中...}
+
+    CC_CHECK -->|"獲利達 50%"| CC_PROFIT["平倉鎖利"]
+    CC_CHECK -->|"到期 OTM"| CC_EXPIRE["到期歸零，全賺 premium"]
+    CC_CHECK -->|"被 Assign<br>股票漲過 Strike 被賣出"| CC_ASSIGNED["股票出清，回收現金"]
+
+    CC_PROFIT -->|"進入下一輪 CC"| OPEN_CC
+    CC_EXPIRE -->|"進入下一輪 CC"| OPEN_CC
+    CC_ASSIGNED -->|"進入下一輪 CSP"| OPEN_CSP
 ```
 
 ---
@@ -269,13 +287,24 @@ P&L % = (6.40 - 3.20) / 3.20 × 100 = 100%
 
 ### Iron Condor 結構
 
-```
-Put Long ──── Put Short ──── [安全區間] ──── Call Short ──── Call Long
-  91%              94%                            106%              109%
+```mermaid
+flowchart LR
+    PL["Put Long<br>現價 × 91%"]
+    PS["Put Short<br>現價 × 94%"]
+    SAFE["✅ 安全區間<br>全部 premium 歸你"]
+    CS["Call Short<br>現價 × 106%"]
+    CL["Call Long<br>現價 × 109%"]
 
-股價在安全區間內到期 → 全部 premium 歸你
-股價跌破 Put Short   → 開始虧損，最多虧到 Put Long 為止
-股價漲過 Call Short  → 開始虧損，最多虧到 Call Long 為止
+    PL -- "最大虧損上限" --- PS
+    PS -- "股價跌破開始虧損" --- SAFE
+    SAFE -- "股價漲過開始虧損" --- CS
+    CS -- "最大虧損上限" --- CL
+
+    style PL fill:#ff9999
+    style PS fill:#ffcc99
+    style SAFE fill:#99ff99
+    style CS fill:#ffcc99
+    style CL fill:#ff9999
 ```
 
 ---
