@@ -6,7 +6,7 @@ import sys
 import os
 import argparse
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -16,7 +16,7 @@ from pricing    import get_position_current_value
 from strategy   import check_position, check_iron_condor_breach
 from notifier   import (send_alerts, send_daily_summary,
                         send_startup_message, send_error_message,
-                        send_message)
+                        send_message, _now_utc, _weekday_zh)
 
 
 def run_monitor(mode: str = "intraday"):
@@ -27,7 +27,15 @@ def run_monitor(mode: str = "intraday"):
 
     if not positions:
         if mode == "daily":
-            send_message("📊 <b>每日收盤總結</b>\n目前無開放持倉", notify=True)
+            now = datetime.now(timezone.utc)
+            send_message(
+                f"📊 <b>每日收盤總結</b>\n"
+                f"交易日：{now.strftime('%Y-%m-%d')}（{_weekday_zh(now)}）\n"
+                f"結算時間：{now.strftime('%H:%M UTC')}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"📭 目前無開放持倉",
+                notify=True,
+            )
         return
 
     if mode == "daily":
@@ -36,7 +44,7 @@ def run_monitor(mode: str = "intraday"):
     all_alerts     = []
     positions_data = []
     price_updates  = []
-    price_data_map = {}   # position_id → prices，傳給 send_alerts 顯示細節
+    price_data_map = {}
     total_pnl      = 0.0
 
     for pos in positions:
@@ -69,7 +77,6 @@ def run_monitor(mode: str = "intraday"):
                 "dte":             prices["dte"],
             })
 
-            # 存起來讓通知訊息可以顯示現價細節
             price_data_map[str(pos_id)] = prices
 
             sheet_pos = {

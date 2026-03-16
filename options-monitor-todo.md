@@ -58,7 +58,7 @@
 ### GitHub Personal Access Token
 
 - [x] GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
-- [x] Generate new token，勾選 `gist` 權限，記錄 **GIST_TOKEN**
+- [x] Generate new token，勾選 `gist` 和 `workflow` 權限，記錄 **GIST_TOKEN**
 
 ### GitHub Secrets 設定
 

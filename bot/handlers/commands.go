@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -37,6 +41,8 @@ func (h *CommandHandler) Dispatch(text string) string {
 		return h.handleAssign(text)
 	case text == "/pnl":
 		return h.handlePnl()
+	case strings.HasPrefix(text, "/trigger"):
+		return h.handleTrigger(text)
 	default:
 		return "❓ 未知指令，輸入 /help 查看所有可用指令"
 	}
@@ -85,14 +91,87 @@ func (h *CommandHandler) handleHelp() string {
 範例：<code>/example iron_condor</code>
 
 ━━━━━━━━━━━━━━━━━━━━
-<b>⚙️ 自動監控說明</b>
+<b>🚀 手動觸發監控</b>
 
-系統每 30 分鐘自動執行，在以下情況發送通知：
+<b>/trigger daily</b>
+立即執行每日收盤總結，發送到通知頻道。
+
+<b>/trigger intraday</b>
+立即執行盤中監控，有異常才會發通知。
+
+━━━━━━━━━━━━━━━━━━━━
+<b>⚙️ 自動監控時間</b>（夏令 UTC）
+
+  📊 收盤結算：每日 20:15 UTC（台灣 04:15）
+  📡 開盤後 1h：每日 14:30 UTC（台灣 22:30）
+  📡 收盤前 1h：每日 19:00 UTC（台灣 03:00）
+
+觸發條件：
   🎯 獲利達到目標 % → 建議平倉
   🛑 虧損超過門檻 % → 停損警告
   ⏰ DTE ≤ 7 天 → 到期提醒
-  ⚠️ 股價逼近 Strike → Assignment 風險
-  📊 每日收盤後發送總結`
+  ⚠️ 股價逼近 Strike → Assignment 風險`
+}
+
+// ── /trigger ──────────────────────────────────────────────────────────────────
+
+func (h *CommandHandler) handleTrigger(text string) string {
+	parts := strings.Fields(text)
+	if len(parts) < 2 {
+		return "❓ 請指定模式，例如：\n<code>/trigger daily</code>\n<code>/trigger intraday</code>"
+	}
+
+	mode := strings.ToLower(parts[1])
+	var workflowFile string
+	var modeName string
+
+	switch mode {
+	case "daily":
+		workflowFile = "daily_summary.yml"
+		modeName     = "每日收盤總結"
+	case "intraday":
+		workflowFile = "intraday_monitor.yml"
+		modeName     = "盤中監控"
+	default:
+		return "❓ 未知模式，可用：<code>daily</code>、<code>intraday</code>"
+	}
+
+	token := os.Getenv("GITHUB_TOKEN")
+	repo  := os.Getenv("GITHUB_REPO")
+
+	if token == "" || repo == "" {
+		return "⚠️ 未設定 GITHUB_TOKEN 或 GITHUB_REPO 環境變數，無法觸發 workflow"
+	}
+
+	url  := fmt.Sprintf("https://api.github.com/repos/%s/actions/workflows/%s/dispatches", repo, workflowFile)
+	body := []byte(`{"ref":"main"}`)
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Sprintf("❌ 建立請求失敗：%v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Sprintf("❌ 觸發失敗：%v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 204 {
+		return fmt.Sprintf(
+			"✅ <b>已觸發 %s</b>\n\n"+
+				"⏱ GitHub Actions 約 30-60 秒後執行\n"+
+				"通知結果會發到通知頻道",
+			modeName,
+		)
+	}
+
+	b, _ := io.ReadAll(resp.Body)
+	return fmt.Sprintf("❌ 觸發失敗（HTTP %d）：%s", resp.StatusCode, string(b))
 }
 
 // ── /example ─────────────────────────────────────────────────────────────────
@@ -104,9 +183,8 @@ func (h *CommandHandler) handleExample(text string) string {
 	}
 
 	strategy := strings.ToLower(parts[1])
-	today := time.Now()
-	// 預設到期日：30 天後最近的週五
-	expiry := nextFriday(today.AddDate(0, 0, 30))
+	today    := time.Now()
+	expiry   := nextFriday(today.AddDate(0, 0, 30))
 
 	var template interface{}
 	var note string
@@ -212,9 +290,8 @@ func (h *CommandHandler) handleExample(text string) string {
 // ── /add ──────────────────────────────────────────────────────────────────────
 
 func (h *CommandHandler) handleAdd(text string) string {
-	// 去掉 /add 前綴，取出 JSON 部分
 	jsonStr := strings.TrimPrefix(text, "/add")
-	jsonStr = strings.TrimSpace(jsonStr)
+	jsonStr  = strings.TrimSpace(jsonStr)
 
 	if jsonStr == "" {
 		return "❓ 請提供 JSON，例如：\n<code>/add {\"strategy\":\"WHEEL_CSP\",...}</code>\n\n先用 /example wheel_csp 取得模板"
@@ -225,7 +302,6 @@ func (h *CommandHandler) handleAdd(text string) string {
 		return fmt.Sprintf("❌ JSON 格式錯誤：%v\n\n請檢查格式，或用 /example 重新取得模板", err)
 	}
 
-	// 驗證必填欄位
 	if err := validateAddRequest(&req); err != nil {
 		return fmt.Sprintf("❌ 驗證失敗：%v", err)
 	}
@@ -246,16 +322,10 @@ func (h *CommandHandler) handleAdd(text string) string {
 			"Premium：%.2f\n"+
 			"獲利目標：%.0f%% | 停損：%.0f%%\n\n"+
 			"📊 系統將在下次 cron 執行時開始監控此持倉",
-		pos.ID,
-		pos.Strategy,
-		pos.Symbol,
-		pos.StrikeSell,
-		strikeRangeStr(pos),
-		pos.Expiry,
-		pos.Contracts,
-		pos.PremiumReceived,
-		pos.ProfitTargetPct,
-		pos.LossLimitPct,
+		pos.ID, pos.Strategy, pos.Symbol,
+		pos.StrikeSell, strikeRangeStr(pos),
+		pos.Expiry, pos.Contracts, pos.PremiumReceived,
+		pos.ProfitTargetPct, pos.LossLimitPct,
 	)
 }
 
@@ -276,7 +346,7 @@ func (h *CommandHandler) handleList() string {
 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
 
 	for _, p := range positions {
-		daysLeft := daysUntil(p.Expiry)
+		daysLeft   := daysUntil(p.Expiry)
 		dteWarning := ""
 		if daysLeft <= 7 {
 			dteWarning = " ⏰"
@@ -347,10 +417,7 @@ func (h *CommandHandler) handleAssign(text string) string {
 			"• DTE = 14-21 天後的週五\n"+
 			"• contracts = %d（同等張數）\n\n"+
 			"開好後記得 /add 登記！",
-		pos.ID, pos.Symbol,
-		pos.StrikeSell,
-		ccStrike,
-		pos.Contracts,
+		pos.ID, pos.Symbol, pos.StrikeSell, ccStrike, pos.Contracts,
 	)
 }
 
