@@ -107,6 +107,8 @@ yfinance 抓價格 → 判斷策略規則 → Telegram 通知
 | `TELEGRAM_CHAT_ID` | 同上 |
 | `GIST_ID` | 同上 |
 | `GIST_TOKEN` | 同上 |
+| `GITHUB_TOKEN` | PAT（需要 workflow 權限，供 /trigger 指令使用） |
+| `GITHUB_REPO` | `maxence2997/options-monitor` |
 
 8. 部署完成後，取得公開 URL（建議綁定自己的 domain）
 
@@ -131,6 +133,8 @@ https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<YOUR_DO
 | `/close <id>` | 將持倉標記為 CLOSED |
 | `/assign <id>` | 標記被 Assign，自動提示開 CC |
 | `/pnl` | 查看持倉損益快照 |
+| `/trigger daily` | 手動觸發每日收盤總結 |
+| `/trigger intraday` | 手動觸發盤中監控 |
 
 ### 支援的策略名稱（用於 /example）
 
@@ -158,7 +162,7 @@ https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<YOUR_DO
 
 | 通知類型 | 觸發條件 | 頻率 | 發送目標 |
 |---------|---------|------|---------|
-| 📊 每日收盤總結 | 每交易日 21:15 UTC（4:15 PM EST） | 每天 | 通知頻道 |
+| 📊 每日收盤總結 | 每交易日 20:15 UTC（台灣 04:15，夏令） | 每天 | 通知頻道 |
 | 🎯 獲利達標 | P&L ≥ 設定目標 % | 盤中每 30 分鐘 | 通知頻道 |
 | 🛑 停損警告 | 虧損 ≥ 停損門檻 % | 盤中每 30 分鐘 | 通知頻道 |
 | ⏰ 快到期提醒 | DTE ≤ 7 天 | 盤中每 30 分鐘 | 通知頻道 |
@@ -216,7 +220,28 @@ DTE ≤ 7 天且有獲利 → 平倉，不冒 Gamma 風險
 
 ---
 
-## 七、本地測試
+## 七、競賽資訊
+
+| 項目 | 內容 |
+|------|------|
+| 比賽期間 | 2026/03/17 - **2026/09/17** |
+| 初始資金 | $1,000,000 |
+| 平台 | Moomoo 富途（模擬盤） |
+| GitHub Repo | https://github.com/maxence2997/options-monitor |
+| Strategy 文件 | [STRATEGY.md](./STRATEGY.md) |
+
+### 時間切換提醒
+
+| 時段 | 美股交易時間（UTC） | 收盤總結 cron |
+|------|-------------------|--------------|
+| 夏令（3月第二週日 ~ 11月第一週日） | 13:30–20:00 | `15 20 * * 1-5` |
+| 冬令（11月第一週日 ~ 3月第二週日） | 14:30–21:00 | `15 21 * * 1-5` |
+
+> ⚠️ 2026/11/01 後需手動更新 `.github/workflows/` 中的 cron 時間（各 +1 小時）
+
+---
+
+## 八、本地測試
 
 ```bash
 # Python 監控腳本
@@ -224,7 +249,7 @@ pip install -r requirements.txt
 
 export TELEGRAM_BOT_TOKEN="xxx"
 export TELEGRAM_CHAT_ID="xxx"
-export TELEGRAM_NOTIFY_CHAT_ID="xxx"  # 選填，不填則通知發到 CHAT_ID
+export TELEGRAM_NOTIFY_CHAT_ID="xxx"
 export GIST_ID="xxx"
 export GIST_TOKEN="xxx"
 
@@ -239,7 +264,7 @@ go run ./cmd/main.go
 
 ---
 
-## 八、費用估算
+## 九、費用估算
 
 | 服務 | 費用 |
 |------|------|

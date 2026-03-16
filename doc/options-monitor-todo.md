@@ -1,6 +1,6 @@
 # 🎯 美股期權模擬競賽 — 任務清單
 
-> 比賽期間：2026/03/17 - 2026/09/15（約 26 週）
+> 比賽期間：2026/03/17 - 2026/09/17（約 26 週）
 > 初始資金：$1,000,000
 > 平台：Moomoo 富途（模擬盤）
 > 策略：SPY Iron Condor + NVDA Wheel + QQQ Bull Call Spread + Hedge Put
@@ -19,90 +19,55 @@
 
 ---
 
-## ✅ Phase 0｜系統環境建立
+## ✅ Phase 0｜系統環境建立（已完成）
 
-### Telegram Bot
+- [x] Telegram Bot 建立，取得 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID
+- [x] 通知群組建立，Bot 已加入（options-monitor Group）
+- [x] GitHub Gist 建立（positions.json），取得 GIST_ID
+- [x] GitHub PAT 建立（gist 權限），取得 GIST_TOKEN
+- [x] GitHub Secrets 設定完成（BOT_TOKEN / CHAT_ID / GIST_ID / GIST_TOKEN）
+- [x] Railway 部署成功（Root Directory=bot）
+- [x] Telegram Webhook 設定完成
+- [x] `/help` 指令驗證正常
+- [x] daily workflow 手動觸發測試成功（收到通知）
+- [x] cron 時間修正為 20:15 UTC（收盤後 15 分）
 
-- [x] 搜尋 `@BotFather`，輸入 `/newbot` 建立 Bot
-- [x] 記錄 `TELEGRAM_BOT_TOKEN`
-- [x] 對 Bot 發一則訊息，再用瀏覽器開啟以下網址取得 `TELEGRAM_CHAT_ID`：
+---
+
+## 🔲 Phase 0｜待完成項目
+
+### 立即處理（今天）
+
+- [ ] **推送以下三個更新檔案到 repo**（修正無持倉格式 + 新增 /trigger 功能）：
   ```
-  https://api.telegram.org/bot<TOKEN>/getUpdates
+  src/monitor.py          ← 無持倉時的 daily 通知改為含日期時間格式
+  bot/handlers/commands.go ← 新增 /trigger 指令、更新 /help 說明
+  bot/cmd/main.go         ← 新增 GITHUB_TOKEN / GITHUB_REPO 環境變數警告
   ```
-  在回傳的 JSON 中找 `result[0].message.chat.id`，即為你的 Chat ID
+  推送後 Railway 會自動重新部署（約 2-3 分鐘）
 
-### 通知頻道（選填）
-
-- [x] 建立 Telegram 群組或頻道，將 Bot 加入
-- [x] 對群組發一則訊息，再用瀏覽器開啟以下網址取得 `TELEGRAM_NOTIFY_CHAT_ID`（群組 chat_id 通常為負數）：
+- [ ] **取得通知群組的 TELEGRAM_NOTIFY_CHAT_ID**
   ```
-  https://api.telegram.org/bot<TOKEN>/getUpdates
+  步驟：
+  1. 先暫時移除 Webhook：
+     https://api.telegram.org/bot<TOKEN>/deleteWebhook
+  2. 在群組傳一則訊息
+  3. 用瀏覽器開啟：
+     https://api.telegram.org/bot<TOKEN>/getUpdates
+  4. 找 result[].message.chat.id（群組 ID 為負數，例：-1001234567890）
+  5. 重新設定 Webhook：
+     https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<URL>/webhook/<TOKEN>
   ```
-  在回傳的 JSON 中找 `result[0].message.chat.id`，即為你的 Notify Chat ID
-  > 未設定時，所有通知都會發到 TELEGRAM_CHAT_ID（向下相容）
+  > 如果 getUpdates 沒有群組訊息，先確認 Bot 有群組的訊息讀取權限（Bot Settings → Allow Groups）
 
-### GitHub Gist（資料庫）
-
-- [x] 前往 [gist.github.com](https://gist.github.com)，建立新的 **Secret Gist**
-  - Filename：`positions.json`
-  - Content：
-    ```json
-    {
-      "positions": [],
-      "next_id": 1,
-      "last_update": ""
-    }
-    ```
-- [x] 從 URL 複製 **GIST_ID**
-
-### GitHub Personal Access Token
-
-- [x] GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
-- [x] Generate new token，勾選 `gist` 和 `workflow` 權限，記錄 **GIST_TOKEN**
-
-### GitHub Secrets 設定
-
-- [x] 前往 repo → Settings → Secrets and variables → Actions，新增：
+- [ ] **Railway 新增兩個環境變數**（/trigger 指令需要）：
   ```
-  TELEGRAM_BOT_TOKEN       ← Bot Token
-  TELEGRAM_CHAT_ID         ← 指令 chat ID
-  TELEGRAM_NOTIFY_CHAT_ID  ← 通知 chat ID（選填）
-  GIST_ID                  ← Gist ID
-  GIST_TOKEN               ← Personal Access Token
+  GITHUB_TOKEN  ← 需要 workflow 權限的 PAT（現有的 GIST_TOKEN 只有 gist 權限，需另建）
+  GITHUB_REPO   ← maxence2997/options-monitor
   ```
+  > 建立新 PAT 時勾選：repo → Actions（workflow 觸發權限）
 
-### requirements.txt
-
-- [x] 確認內容：
-  ```
-  yfinance==1.2.0
-  requests==2.32.3
-  pandas==3.0.1
-  ```
-
-### Railway Bot Server 部署
-
-- [x] 前往 [railway.app](https://railway.app)，用 GitHub 登入
-- [x] New Project → Deploy from GitHub repo → 選 `options-monitor`
-- [x] Builder 選 **Dockerfile**，Dockerfile Path 設 `/bot/Dockerfile`
-- [x] Root Directory 設為 `bot`，Watch Paths 設為 `/bot/**`
-- [x] 新增環境變數（TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID / GIST_ID / GIST_TOKEN）
-- [x] 等待部署完成，記錄公開 URL
-
-### 向 Telegram 註冊 Webhook
-
-- [x] 開啟以下網址（替換 `<TOKEN>` 和 `<URL>`）：
-  ```
-  https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<URL>/webhook/<TOKEN>
-  ```
-- [x] 確認回傳 `{"ok":true,...,"description":"Webhook was set"}`
-
-### 驗證系統運作
-
-- [x] 對 Bot 傳 `/help`，確認收到指令說明
-- [x] 傳 `/example iron_condor`，確認收到 JSON 模板
-- [x] GitHub Actions → `每日收盤總結` → `Run workflow` 手動觸發
-- [x] 確認 **通知頻道** 收到「目前無開放持倉」訊息
+- [ ] **GitHub Secrets 新增 TELEGRAM_NOTIFY_CHAT_ID**（取得後補上）
 
 ---
 
@@ -115,7 +80,7 @@
 
 ### 第一筆：SPY Iron Condor（週一開盤後）
 
-> 參考價：SPY $662（實際下單用當天開盤後價格重新計算）
+> 計算方式：取當天開盤後 SPY 現價重新計算
 
 ```
 Put Short  = 當日 SPY 現價 × 94%
@@ -192,7 +157,23 @@ Strike = GTC 後 NVDA 現價 × 88%
 - [ ] 打聽同事排名，評估位置
 - [ ] 落後 → 增加 QQQ Bull Call Spread 張數（進攻）
 - [ ] 領先 → 縮小部位（守成）
-- [ ] **9/1 後**：到期日 > 9/15 的期權全部提前平倉
+- [ ] **9/1 後**：到期日 > 9/17 的期權全部提前平倉
+
+---
+
+## 🚀 Bot 指令速查
+
+| 指令 | 說明 |
+|------|------|
+| `/help` | 完整指令說明 |
+| `/example <策略>` | 取得 JSON 填寫模板 |
+| `/add {json}` | 新增持倉 |
+| `/list` | 列出所有 OPEN 持倉 |
+| `/close <id>` | 標記已平倉 |
+| `/assign <id>` | 標記被 Assign，提示開 CC |
+| `/pnl` | 損益快照 |
+| `/trigger daily` | 手動觸發每日收盤總結 |
+| `/trigger intraday` | 手動觸發盤中監控 |
 
 ---
 
@@ -208,21 +189,42 @@ Strike = GTC 後 NVDA 現價 × 88%
 
 ---
 
+## ⚠️ 注意事項
+
+### 冬令時間切換（2026/11/01 後）
+
+需更新兩個 workflow 的 cron 時間（各 +1 小時）：
+
+`.github/workflows/daily_summary.yml`
+```
+# 改為：
+- cron: "15 21 * * 1-5"
+```
+
+`.github/workflows/intraday_monitor.yml`
+```
+# 改為：
+- cron: "30 15 * * 1-5"
+- cron: "0 20 * * 1-5"
+```
+
+---
+
 ## 🔑 重要參數記錄
 
 ```
 Telegram Bot Token        : ______________________________
 Telegram Chat ID（指令）  : ______________________________
-Telegram Chat ID（通知）  : ______________________________
+Telegram Chat ID（通知）  : ______________________________（取得後補上）
 GitHub Gist ID            : ______________________________
-Railway URL               : ______________________________
+Railway URL               : options-monitor-bot.maxence2997.cc
 GitHub Repo               : https://github.com/maxence2997/options-monitor
 
-首次 SPY IC 開倉日        : 2026-03-16
+首次 SPY IC 開倉日        : 2026-03-16（週一）
 首次 NVDA CSP 開倉日      : GTC 後（預計 2026-03-20）
 Hedge Put 到期日          : 2026-06-19
 ```
 
 ---
 
-_最後更新：2026-03-15_
+_最後更新：2026-03-16_
