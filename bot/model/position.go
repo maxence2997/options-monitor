@@ -40,7 +40,7 @@ type Position struct {
 type Store struct {
 	Positions  []Position `json:"positions"`
 	NextID     int        `json:"next_id"`
-	LastUpdate string  `json:"last_update"`
+	LastUpdate time.Time  `json:"last_update"`
 }
 
 // AddPositionRequest は /add コマンドで受け取る JSON
