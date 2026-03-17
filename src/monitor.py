@@ -15,7 +15,7 @@ from gist_store import load_positions, save_positions
 from pricing    import get_position_current_value
 from strategy   import get_strategy
 from notifier   import (send_alerts, send_daily_summary,
-                        send_startup_message, send_error_message,
+                        send_error_message,
                         send_message, _now_utc, _weekday_zh)
 
 
@@ -105,9 +105,6 @@ def run_monitor(mode: str = "intraday"):
                 notify=True,
             )
         return
-
-    if mode == "daily":
-        send_startup_message(len(positions))
 
     all_alerts     = []
     positions_data = []

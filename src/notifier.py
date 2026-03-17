@@ -229,22 +229,7 @@ def send_daily_summary(positions_data: list, total_pnl: float,
 
     body = "\n".join(rows) if rows else "📭 目前無開放持倉"
 
-    footer = (
-        f"\n━━━━━━━━━━━━━━━━━━━━\n"
-        f"🤖 系統監控中，異常將立即通知"
-    )
-
-    send_message(header + body + footer, notify=True)
-
-
-def send_startup_message(position_count: int) -> None:
-    """發送系統啟動訊息 → 通知頻道"""
-    send_message(
-        f"🤖 <b>期權監控系統啟動</b>\n"
-        f"⏰ {_now_utc()}\n"
-        f"正在監控 {position_count} 個持倉...",
-        notify=True,
-    )
+    send_message(header + body, notify=True)
 
 
 def send_error_message(error: str) -> None:
