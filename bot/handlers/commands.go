@@ -212,6 +212,7 @@ func (h *CommandHandler) handleExample(text string) string {
 		note = "💡 <b>NVDA CC 填寫提示</b>\n" +
 			"• strike_sell = 被 Assign 成本價 × 105%\n" +
 			"• premium_received = Moomoo 成交確認的 Net Credit（每股）\n" +
+			"• expiry = 被 Assign 後立即開，選 14-21 天後的週五到期日\n" +
 			"• notes 填入 assigned_cost=你的成本價，方便追蹤"
 
 	case "iron_condor":
@@ -240,6 +241,9 @@ func (h *CommandHandler) handleExample(text string) string {
 			"<b>在 Moomoo 要下兩筆單：</b>\n" +
 			"① Sell Put Spread：賣 put_strike_short，買 put_strike_long\n" +
 			"② Sell Call Spread：賣 call_strike_short，買 call_strike_long\n\n" +
+			"<b>到期日選擇：</b>\n" +
+			"• 每月第一個交易日開倉，選 30-45 天後的週五到期\n" +
+			"• expiry 填寫格式：YYYY-MM-DD（例：2026-04-25）\n\n" +
 			"<b>Strike 計算：</b>\n" +
 			"• put_strike_short  = 現價 × 94%\n" +
 			"• put_strike_long   = 現價 × 91%\n" +
@@ -264,6 +268,7 @@ func (h *CommandHandler) handleExample(text string) string {
 			"notes":             "",
 		}
 		note = "💡 <b>QQQ Bull Call Spread 填寫提示</b>\n" +
+			"• expiry = 每 2 個月開倉一次，選 45-60 天後的週五到期日\n" +
 			"• strike_sell = 買入的 Call（ATM 附近）\n" +
 			"• strike_buy  = 賣出的 Call（+10% Strike）\n" +
 			"• premium_received = <b>負數</b>（付出的成本，例 -3.20）\n" +
@@ -282,6 +287,7 @@ func (h *CommandHandler) handleExample(text string) string {
 			"notes":             "",
 		}
 		note = "💡 <b>SPY Hedge Put 填寫提示</b>\n" +
+			"• expiry = 每季開倉一次，選約 90 天後的到期日\n" +
 			"• strike_sell = 現價 × 85%（深度 OTM）\n" +
 			"• premium_received = <b>負數</b>（付出的保費）\n" +
 			"• 這是黑天鵝保險，到期歸零是正常結果，不會發停損通知"
