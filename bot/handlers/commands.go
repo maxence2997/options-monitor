@@ -58,7 +58,6 @@ func (h *CommandHandler) handleHelp() string {
 
 <b>/add {json}</b>
 新增一筆持倉。先用 /example 取得模板，修改後貼上。
-範例：<code>/add {"strategy":"WHEEL_CSP",...}</code>
 
 <b>/list</b>
 列出所有 OPEN 狀態的持倉及其基本資訊。
@@ -73,7 +72,7 @@ func (h *CommandHandler) handleHelp() string {
 範例：<code>/assign 2</code>
 
 <b>/pnl</b>
-顯示目前各持倉的損益快照（下次 cron 執行後更新）。
+顯示目前各持倉的損益快照。
 
 ━━━━━━━━━━━━━━━━━━━━
 <b>📝 模板取得</b>
@@ -84,7 +83,7 @@ func (h *CommandHandler) handleHelp() string {
 支援的策略名稱：
   <code>wheel_csp</code>     → NVDA 賣 Put（Wheel 第一步）
   <code>wheel_cc</code>      → NVDA 賣 Call（Assign 後）
-  <code>iron_condor</code>   → SPY Iron Condor
+  <code>iron_condor</code>   → SPY Iron Condor（兩筆單分開記錄）
   <code>bull_call</code>     → QQQ Bull Call Spread
   <code>hedge</code>         → SPY OTM Put 對沖
 
@@ -93,24 +92,15 @@ func (h *CommandHandler) handleHelp() string {
 ━━━━━━━━━━━━━━━━━━━━
 <b>🚀 手動觸發監控</b>
 
-<b>/trigger daily</b>
-立即執行每日收盤總結，發送到通知頻道。
-
-<b>/trigger intraday</b>
-立即執行盤中監控，有異常才會發通知。
+<b>/trigger daily</b>    立即執行每日收盤總結
+<b>/trigger intraday</b> 立即執行盤中監控
 
 ━━━━━━━━━━━━━━━━━━━━
 <b>⚙️ 自動監控時間</b>（夏令 UTC）
 
   📊 收盤結算：每日 20:15 UTC（台灣 04:15）
   📡 開盤後 1h：每日 14:30 UTC（台灣 22:30）
-  📡 收盤前 1h：每日 19:00 UTC（台灣 03:00）
-
-觸發條件：
-  🎯 獲利達到目標 % → 建議平倉
-  🛑 虧損超過門檻 % → 停損警告
-  ⏰ DTE ≤ 7 天 → 到期提醒
-  ⚠️ 股價逼近 Strike → Assignment 風險`
+  📡 收盤前 1h：每日 19:00 UTC（台灣 03:00）`
 }
 
 // ── /trigger ──────────────────────────────────────────────────────────────────
@@ -128,22 +118,22 @@ func (h *CommandHandler) handleTrigger(text string) string {
 	switch mode {
 	case "daily":
 		workflowFile = "daily_summary.yml"
-		modeName     = "每日收盤總結"
+		modeName = "每日收盤總結"
 	case "intraday":
 		workflowFile = "intraday_monitor.yml"
-		modeName     = "盤中監控"
+		modeName = "盤中監控"
 	default:
 		return "❓ 未知模式，可用：<code>daily</code>、<code>intraday</code>"
 	}
 
 	token := os.Getenv("GITHUB_TOKEN")
-	repo  := os.Getenv("GITHUB_REPO")
+	repo := os.Getenv("GITHUB_REPO")
 
 	if token == "" || repo == "" {
 		return "⚠️ 未設定 GITHUB_TOKEN 或 GITHUB_REPO 環境變數，無法觸發 workflow"
 	}
 
-	url  := fmt.Sprintf("https://api.github.com/repos/%s/actions/workflows/%s/dispatches", repo, workflowFile)
+	url := fmt.Sprintf("https://api.github.com/repos/%s/actions/workflows/%s/dispatches", repo, workflowFile)
 	body := []byte(`{"ref":"main"}`)
 
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
@@ -183,8 +173,8 @@ func (h *CommandHandler) handleExample(text string) string {
 	}
 
 	strategy := strings.ToLower(parts[1])
-	today    := time.Now()
-	expiry   := nextFriday(today.AddDate(0, 0, 30))
+	today := time.Now()
+	expiry := nextFriday(today.AddDate(0, 0, 30))
 
 	var template interface{}
 	var note string
@@ -204,8 +194,8 @@ func (h *CommandHandler) handleExample(text string) string {
 		}
 		note = "💡 <b>NVDA CSP 填寫提示</b>\n" +
 			"• strike_sell = 現價 × 88%（例：現價 $180 → strike $158）\n" +
-			"• premium_received = 實際成交的每股 premium\n" +
-			"• expiry = 找 21-30 天後的週五到期日"
+			"• premium_received = Moomoo 成交確認的 Net Credit（每股）\n" +
+			"• expiry = 21-30 天後的週五到期日"
 
 	case "wheel_cc":
 		template = map[string]interface{}{
@@ -221,26 +211,44 @@ func (h *CommandHandler) handleExample(text string) string {
 		}
 		note = "💡 <b>NVDA CC 填寫提示</b>\n" +
 			"• strike_sell = 被 Assign 成本價 × 105%\n" +
+			"• premium_received = Moomoo 成交確認的 Net Credit（每股）\n" +
 			"• notes 填入 assigned_cost=你的成本價，方便追蹤"
 
 	case "iron_condor":
+		icExpiry := nextFriday(today.AddDate(0, 0, 35))
 		template = map[string]interface{}{
-			"strategy":          "IRON_CONDOR",
-			"symbol":            "SPY",
-			"expiry":            nextFriday(today.AddDate(0, 0, 35)),
-			"contracts":         20,
-			"strike_sell":       622.00,
-			"strike_buy":        602.00,
-			"premium_received":  2.50,
+			"strategy":  "IRON_CONDOR",
+			"symbol":    "SPY",
+			"expiry":    icExpiry,
+			"contracts": 20,
+
+			// Put Spread（第一筆單）
+			"put_strike_short": 622.00,
+			"put_strike_long":  602.00,
+			"put_premium":      1.40,
+
+			// Call Spread（第二筆單）
+			"call_strike_short": 702.00,
+			"call_strike_long":  722.00,
+			"call_premium":      1.10,
+
 			"profit_target_pct": 50,
 			"loss_limit_pct":    200,
-			"notes":             "call_short=702 | call_buy=722",
+			"notes":             "",
 		}
-		note = "💡 <b>SPY Iron Condor 填寫提示</b>\n" +
-			"• strike_sell = Put Short（現價 × 94%）\n" +
-			"• strike_buy  = Put Long（現價 × 91%）\n" +
-			"• notes 必填 call_short 和 call_buy，系統監控用\n" +
-			"• Call Short = 現價 × 106%，Call Long = 現價 × 109%"
+		note = "💡 <b>SPY Iron Condor 填寫提示</b>\n\n" +
+			"<b>在 Moomoo 要下兩筆單：</b>\n" +
+			"① Sell Put Spread：賣 put_strike_short，買 put_strike_long\n" +
+			"② Sell Call Spread：賣 call_strike_short，買 call_strike_long\n\n" +
+			"<b>Strike 計算：</b>\n" +
+			"• put_strike_short  = 現價 × 94%\n" +
+			"• put_strike_long   = 現價 × 91%\n" +
+			"• call_strike_short = 現價 × 106%\n" +
+			"• call_strike_long  = 現價 × 109%\n\n" +
+			"<b>Premium 填寫：</b>\n" +
+			"• put_premium  = 第一筆單 Moomoo 顯示的 Net Credit（每股）\n" +
+			"• call_premium = 第二筆單 Moomoo 顯示的 Net Credit（每股）\n" +
+			"• 系統自動加總計算總 PnL，不需要手動合計"
 
 	case "bull_call":
 		template = map[string]interface{}{
@@ -271,12 +279,12 @@ func (h *CommandHandler) handleExample(text string) string {
 			"premium_received":  -1.80,
 			"profit_target_pct": 200,
 			"loss_limit_pct":    100,
-			"notes":             "black_swan_hedge",
+			"notes":             "",
 		}
 		note = "💡 <b>SPY Hedge Put 填寫提示</b>\n" +
 			"• strike_sell = 現價 × 85%（深度 OTM）\n" +
 			"• premium_received = <b>負數</b>（付出的保費）\n" +
-			"• 這筆買了就不用管，當保險費看待"
+			"• 這是黑天鵝保險，到期歸零是正常結果，不會發停損通知"
 
 	default:
 		return "❓ 未知策略，可用：<code>wheel_csp</code>, <code>wheel_cc</code>, <code>iron_condor</code>, <code>bull_call</code>, <code>hedge</code>"
@@ -291,10 +299,10 @@ func (h *CommandHandler) handleExample(text string) string {
 
 func (h *CommandHandler) handleAdd(text string) string {
 	jsonStr := strings.TrimPrefix(text, "/add")
-	jsonStr  = strings.TrimSpace(jsonStr)
+	jsonStr = strings.TrimSpace(jsonStr)
 
 	if jsonStr == "" {
-		return "❓ 請提供 JSON，例如：\n<code>/add {\"strategy\":\"WHEEL_CSP\",...}</code>\n\n先用 /example wheel_csp 取得模板"
+		return "❓ 請提供 JSON，先用 /example 取得模板"
 	}
 
 	var req model.AddPositionRequest
@@ -309,6 +317,25 @@ func (h *CommandHandler) handleAdd(text string) string {
 	pos, err := h.store.AddPosition(&req)
 	if err != nil {
 		return fmt.Sprintf("❌ 儲存失敗：%v", err)
+	}
+
+	if pos.Strategy == model.StrategyIronCondor {
+		return fmt.Sprintf(
+			"✅ <b>IC 持倉已新增</b>\n\n"+
+				"ID：%d | %s %s\n"+
+				"到期日：%s | 張數：%d\n\n"+
+				"Put Spread：%.0f / %.0f | Premium：%.2f\n"+
+				"Call Spread：%.0f / %.0f | Premium：%.2f\n"+
+				"Total Premium：<b>%.2f</b>（系統自動加總）\n\n"+
+				"獲利目標：%.0f%% | 停損：%.0f%%\n\n"+
+				"📊 系統將在下次 cron 執行時開始監控此持倉",
+			pos.ID, pos.Symbol, pos.Strategy,
+			pos.Expiry, pos.Contracts,
+			pos.PutStrikeShort, pos.PutStrikeLong, pos.PutPremium,
+			pos.CallStrikeShort, pos.CallStrikeLong, pos.CallPremium,
+			pos.TotalPremium(),
+			pos.ProfitTargetPct, pos.LossLimitPct,
+		)
 	}
 
 	return fmt.Sprintf(
@@ -346,20 +373,37 @@ func (h *CommandHandler) handleList() string {
 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
 
 	for _, p := range positions {
-		daysLeft   := daysUntil(p.Expiry)
+		daysLeft := daysUntil(p.Expiry)
 		dteWarning := ""
 		if daysLeft <= 7 {
 			dteWarning = " ⏰"
 		}
 
-		fmt.Fprintf(&sb, "<b>[%d] %s %s</b>%s\n"+
-			"  Strike: %.0f%s | 到期: %s（%d天）\n"+
-			"  %d張 | Premium: %.2f | 目標: %.0f%% 停損: %.0f%%\n",
-			p.ID, p.Symbol, p.Strategy, dteWarning,
-			p.StrikeSell, strikeRangeStr(&p),
-			p.Expiry, daysLeft,
-			p.Contracts, p.PremiumReceived,
-			p.ProfitTargetPct, p.LossLimitPct)
+		if p.Strategy == model.StrategyIronCondor {
+			fmt.Fprintf(&sb,
+				"<b>[%d] %s %s</b>%s\n"+
+					"  Put: %.0f/%.0f | Call: %.0f/%.0f\n"+
+					"  到期: %s（%d天）| %d張\n"+
+					"  Total Premium: %.2f | 目標: %.0f%% 停損: %.0f%%\n",
+				p.ID, p.Symbol, p.Strategy, dteWarning,
+				p.PutStrikeShort, p.PutStrikeLong,
+				p.CallStrikeShort, p.CallStrikeLong,
+				p.Expiry, daysLeft, p.Contracts,
+				p.TotalPremium(),
+				p.ProfitTargetPct, p.LossLimitPct,
+			)
+		} else {
+			fmt.Fprintf(&sb,
+				"<b>[%d] %s %s</b>%s\n"+
+					"  Strike: %.0f%s | 到期: %s（%d天）\n"+
+					"  %d張 | Premium: %.2f | 目標: %.0f%% 停損: %.0f%%\n",
+				p.ID, p.Symbol, p.Strategy, dteWarning,
+				p.StrikeSell, strikeRangeStr(&p),
+				p.Expiry, daysLeft,
+				p.Contracts, p.PremiumReceived,
+				p.ProfitTargetPct, p.LossLimitPct,
+			)
+		}
 		if p.Notes != "" {
 			sb.WriteString(fmt.Sprintf("  📝 %s\n", p.Notes))
 		}
@@ -439,7 +483,7 @@ func (h *CommandHandler) handlePnl() string {
 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n\n")
 
 	for _, p := range positions {
-		maxProfit := p.PremiumReceived * float64(p.Contracts) * 100
+		maxProfit := p.TotalPremium() * float64(p.Contracts) * 100
 		sb.WriteString(fmt.Sprintf(
 			"<b>[%d] %s %s</b>\n"+
 				"  最大獲利：$%.0f | 到期：%s（%d天剩）\n\n",
@@ -456,7 +500,7 @@ func (h *CommandHandler) handlePnl() string {
 
 func validateAddRequest(req *model.AddPositionRequest) error {
 	if !req.Strategy.IsValid() {
-		return fmt.Errorf("strategy 無效：%q，可用值：WHEEL_CSP, WHEEL_CC, IRON_CONDOR, BULL_CALL_SPREAD, HEDGE_PUT", req.Strategy)
+		return fmt.Errorf("strategy 無效：%q", req.Strategy)
 	}
 	if req.Symbol == "" {
 		return fmt.Errorf("symbol 不能為空")
@@ -470,6 +514,39 @@ func validateAddRequest(req *model.AddPositionRequest) error {
 	if req.Contracts <= 0 {
 		return fmt.Errorf("contracts 必須大於 0")
 	}
+
+	// IC 專用驗證
+	if req.Strategy == model.StrategyIronCondor {
+		if req.PutStrikeShort <= 0 {
+			return fmt.Errorf("put_strike_short 必須大於 0")
+		}
+		if req.PutStrikeLong <= 0 {
+			return fmt.Errorf("put_strike_long 必須大於 0")
+		}
+		if req.PutStrikeShort <= req.PutStrikeLong {
+			return fmt.Errorf("put_strike_short（%.0f）必須大於 put_strike_long（%.0f）",
+				req.PutStrikeShort, req.PutStrikeLong)
+		}
+		if req.CallStrikeShort <= 0 {
+			return fmt.Errorf("call_strike_short 必須大於 0")
+		}
+		if req.CallStrikeLong <= 0 {
+			return fmt.Errorf("call_strike_long 必須大於 0")
+		}
+		if req.CallStrikeLong <= req.CallStrikeShort {
+			return fmt.Errorf("call_strike_long（%.0f）必須大於 call_strike_short（%.0f）",
+				req.CallStrikeLong, req.CallStrikeShort)
+		}
+		if req.PutPremium <= 0 {
+			return fmt.Errorf("put_premium 必須大於 0（Moomoo Put Spread 成交的 Net Credit）")
+		}
+		if req.CallPremium <= 0 {
+			return fmt.Errorf("call_premium 必須大於 0（Moomoo Call Spread 成交的 Net Credit）")
+		}
+		return nil
+	}
+
+	// 非 IC 策略驗證
 	if req.StrikeSell <= 0 {
 		return fmt.Errorf("strike_sell 必須大於 0")
 	}

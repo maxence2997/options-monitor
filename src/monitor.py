@@ -13,10 +13,78 @@ sys.path.insert(0, os.path.dirname(__file__))
 from config     import INITIAL_CAPITAL
 from gist_store import load_positions, save_positions
 from pricing    import get_position_current_value
-from strategy   import get_strategy                          # ← 唯一改動的 import
+from strategy   import get_strategy
 from notifier   import (send_alerts, send_daily_summary,
                         send_startup_message, send_error_message,
                         send_message, _now_utc, _weekday_zh)
+
+
+def _build_pricing_input(pos: dict) -> dict:
+    """
+    從 Gist 的持倉 dict 組裝 pricing.get_position_current_value 需要的 dict。
+    IC 使用新的六個專用欄位；其他策略使用原有欄位。
+    """
+    strategy = pos["strategy"].upper()
+    base = {
+        "SYMBOL":    pos["symbol"],
+        "STRATEGY":  strategy,
+        "EXPIRY":    pos["expiry"],
+        "CONTRACTS": pos["contracts"],
+    }
+
+    if strategy == "IRON_CONDOR":
+        base.update({
+            "PUT_STRIKE_SHORT":  pos["put_strike_short"],
+            "PUT_STRIKE_LONG":   pos["put_strike_long"],
+            "PUT_PREMIUM":       pos["put_premium"],
+            "CALL_STRIKE_SHORT": pos["call_strike_short"],
+            "CALL_STRIKE_LONG":  pos["call_strike_long"],
+            "CALL_PREMIUM":      pos["call_premium"],
+        })
+    else:
+        base.update({
+            "STRIKE_SELL":      pos["strike_sell"],
+            "STRIKE_BUY":       pos.get("strike_buy", 0),
+            "PREMIUM_RECEIVED": pos["premium_received"],
+        })
+
+    return base
+
+
+def _build_sheet_pos(pos: dict) -> dict:
+    """
+    組裝傳給 strategy.check() 的 sheet_pos dict。
+    IC 補上六個新欄位，供 iron_condor.py 的 breach 判斷使用。
+    """
+    strategy = pos["strategy"].upper()
+    sheet = {
+        "SYMBOL":            pos["symbol"],
+        "STRATEGY":          strategy,
+        "PROFIT_TARGET_PCT": pos.get("profit_target_pct", 50),
+        "LOSS_LIMIT_PCT":    pos.get("loss_limit_pct", 200),
+        "NOTES":             pos.get("notes", ""),
+        "ID":                pos.get("id", "?"),
+        "CONTRACTS":         pos["contracts"],
+    }
+
+    if strategy == "IRON_CONDOR":
+        sheet.update({
+            "PUT_STRIKE_SHORT":  pos["put_strike_short"],
+            "PUT_STRIKE_LONG":   pos["put_strike_long"],
+            "PUT_PREMIUM":       pos["put_premium"],
+            "CALL_STRIKE_SHORT": pos["call_strike_short"],
+            "CALL_STRIKE_LONG":  pos["call_strike_long"],
+            "CALL_PREMIUM":      pos["call_premium"],
+            # iron_condor.py 的 breach 檢查沿用 STRIKE_SELL 當 put_short
+            "STRIKE_SELL":       pos["put_strike_short"],
+        })
+    else:
+        sheet.update({
+            "STRIKE_SELL": pos["strike_sell"],
+            "STRIKE_BUY":  pos.get("strike_buy", 0),
+        })
+
+    return sheet
 
 
 def run_monitor(mode: str = "intraday"):
@@ -55,15 +123,8 @@ def run_monitor(mode: str = "intraday"):
         try:
             print(f"  處理 [{pos_id}] {symbol} {strategy}...")
 
-            prices = get_position_current_value({
-                "SYMBOL":           symbol,
-                "STRATEGY":         strategy,
-                "EXPIRY":           pos["expiry"],
-                "CONTRACTS":        pos["contracts"],
-                "STRIKE_SELL":      pos["strike_sell"],
-                "STRIKE_BUY":       pos.get("strike_buy", 0),
-                "PREMIUM_RECEIVED": pos["premium_received"],
-            })
+            prices    = get_position_current_value(_build_pricing_input(pos))
+            sheet_pos = _build_sheet_pos(pos)
 
             total_pnl += prices["pnl_usd"]
 
@@ -79,20 +140,7 @@ def run_monitor(mode: str = "intraday"):
 
             price_data_map[str(pos_id)] = prices
 
-            sheet_pos = {
-                "SYMBOL":            symbol,
-                "STRATEGY":          strategy,
-                "PROFIT_TARGET_PCT": pos.get("profit_target_pct", 50),
-                "LOSS_LIMIT_PCT":    pos.get("loss_limit_pct", 200),
-                "NOTES":             pos.get("notes", ""),
-                "ID":                pos_id,
-                "CONTRACTS":         pos["contracts"],
-                "STRIKE_SELL":       pos["strike_sell"],
-            }
-
-            # ── 每個策略自己知道自己的規則 ──────────────────────────
             alerts = get_strategy(strategy).check(sheet_pos, prices)
-
             all_alerts.extend(alerts)
             positions_data.append({"position": sheet_pos, "prices": prices})
 
@@ -100,7 +148,6 @@ def run_monitor(mode: str = "intraday"):
                   f"DTE={prices['dte']}, Alerts={len(alerts)}")
 
         except ValueError as e:
-            # 未知策略（不應發生，但優雅處理）
             print(f"  ⚠️  [{pos_id}] {symbol} {strategy}：{e}")
         except Exception as e:
             err_msg = f"處理 [{pos_id}] {symbol} {strategy} 時發生錯誤: {e}"

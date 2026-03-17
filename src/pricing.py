@@ -30,7 +30,6 @@ def get_option_price(symbol: str, expiry_str: str, strike: float,
     if not available:
         raise ValueError(f"無法取得 {symbol} 的期權資料")
 
-    # 找最接近的到期日
     target = datetime.strptime(expiry_str, "%Y-%m-%d").date()
     best_expiry = min(
         available,
@@ -41,7 +40,6 @@ def get_option_price(symbol: str, expiry_str: str, strike: float,
     df = chain.calls if option_type.lower() == "call" else chain.puts
     df = df.copy()
 
-    # yfinance 1.x: strike 欄位名稱不變
     df["strike_diff"] = abs(df["strike"] - strike)
     row = df.nsmallest(1, "strike_diff").iloc[0]
 
@@ -78,19 +76,68 @@ def calc_dte(expiry_str: str) -> int:
 
 def get_position_current_value(position: dict) -> dict:
     """
-    計算單一持倉的即時數據
+    計算單一持倉的即時數據。
     回傳：stock_price, premium_current, pnl_usd, pnl_pct, distance_pct, dte
+
+    IRON_CONDOR 使用專用欄位：
+      put_strike_short, put_strike_long, put_premium
+      call_strike_short, call_strike_long, call_premium
+    其他策略使用：
+      strike_sell, strike_buy, premium_received
     """
-    symbol           = position["SYMBOL"]
-    strategy         = position["STRATEGY"].upper()
-    expiry           = str(position["EXPIRY"])
-    contracts        = int(position.get("CONTRACTS", 1))
-    strike_sell      = float(position["STRIKE_SELL"])
-    strike_buy       = float(position.get("STRIKE_BUY") or 0)
-    premium_received = float(position["PREMIUM_RECEIVED"])
+    symbol    = position["SYMBOL"]
+    strategy  = position["STRATEGY"].upper()
+    expiry    = str(position["EXPIRY"])
+    contracts = int(position.get("CONTRACTS", 1))
 
     stock_price = get_stock_price(symbol)
     dte         = calc_dte(expiry)
+
+    # ── Iron Condor（Put Spread + Call Spread 分開計算）──────────────
+    if strategy == "IRON_CONDOR":
+        put_strike_short  = float(position["PUT_STRIKE_SHORT"])
+        put_strike_long   = float(position["PUT_STRIKE_LONG"])
+        put_premium       = float(position["PUT_PREMIUM"])
+        call_strike_short = float(position["CALL_STRIKE_SHORT"])
+        call_strike_long  = float(position["CALL_STRIKE_LONG"])
+        call_premium      = float(position["CALL_PREMIUM"])
+
+        total_premium_received = put_premium + call_premium
+
+        # 現在平倉需要花的錢（兩側加總）
+        put_spread_current  = get_spread_price(symbol, expiry,
+                                               put_strike_short, put_strike_long, "put")
+        call_spread_current = get_spread_price(symbol, expiry,
+                                               call_strike_short, call_strike_long, "call")
+        premium_current = put_spread_current + call_spread_current
+
+        pnl_per_share = total_premium_received - premium_current
+
+        # distance_pct：取兩側中較近的（正值 = 還在安全區間外）
+        put_distance  = (stock_price - put_strike_short) / stock_price * 100
+        call_distance = (call_strike_short - stock_price) / stock_price * 100
+        distance_pct  = min(put_distance, call_distance)
+
+        pnl_usd = pnl_per_share * 100 * contracts
+        pnl_pct = (pnl_per_share / total_premium_received * 100) \
+                  if total_premium_received != 0 else 0.0
+
+        return {
+            "stock_price":     stock_price,
+            "premium_current": premium_current,
+            "pnl_usd":         pnl_usd,
+            "pnl_pct":         pnl_pct,
+            "distance_pct":    distance_pct,
+            "dte":             dte,
+            # IC 額外回傳兩側各自現值，供 iron_condor.py breach 判斷用
+            "put_spread_current":  put_spread_current,
+            "call_spread_current": call_spread_current,
+        }
+
+    # ── 其他策略（原有邏輯不動）──────────────────────────────────────
+    strike_sell      = float(position["STRIKE_SELL"])
+    strike_buy       = float(position.get("STRIKE_BUY") or 0)
+    premium_received = float(position["PREMIUM_RECEIVED"])
 
     if strategy == "WHEEL_CSP":
         premium_current = get_option_price(symbol, expiry, strike_sell, "put")
@@ -101,12 +148,6 @@ def get_position_current_value(position: dict) -> dict:
         premium_current = get_option_price(symbol, expiry, strike_sell, "call")
         pnl_per_share   = premium_received - premium_current
         distance_pct    = (strike_sell - stock_price) / stock_price * 100
-
-    elif strategy == "IRON_CONDOR":
-        put_current     = get_spread_price(symbol, expiry, strike_sell, strike_buy, "put")
-        premium_current = put_current
-        pnl_per_share   = premium_received - premium_current
-        distance_pct    = (stock_price - strike_sell) / stock_price * 100
 
     elif strategy == "BULL_CALL_SPREAD":
         spread_current  = get_spread_price(symbol, expiry, strike_sell, strike_buy, "call")
@@ -125,7 +166,8 @@ def get_position_current_value(position: dict) -> dict:
         distance_pct    = 0.0
 
     pnl_usd = pnl_per_share * 100 * contracts
-    pnl_pct = (pnl_per_share / abs(premium_received) * 100) if premium_received != 0 else 0.0
+    pnl_pct = (pnl_per_share / abs(premium_received) * 100) \
+              if premium_received != 0 else 0.0
 
     return {
         "stock_price":     stock_price,
