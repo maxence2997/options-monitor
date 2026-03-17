@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from config     import INITIAL_CAPITAL
 from gist_store import load_positions, save_positions
 from pricing    import get_position_current_value
-from strategy   import check_position, check_iron_condor_breach
+from strategy   import get_strategy                          # ← 唯一改動的 import
 from notifier   import (send_alerts, send_daily_summary,
                         send_startup_message, send_error_message,
                         send_message, _now_utc, _weekday_zh)
@@ -90,10 +90,8 @@ def run_monitor(mode: str = "intraday"):
                 "STRIKE_SELL":       pos["strike_sell"],
             }
 
-            alerts = check_position(sheet_pos, prices)
-            ic_alert = check_iron_condor_breach(sheet_pos, prices)
-            if ic_alert:
-                alerts.append(ic_alert)
+            # ── 每個策略自己知道自己的規則 ──────────────────────────
+            alerts = get_strategy(strategy).check(sheet_pos, prices)
 
             all_alerts.extend(alerts)
             positions_data.append({"position": sheet_pos, "prices": prices})
@@ -101,6 +99,9 @@ def run_monitor(mode: str = "intraday"):
             print(f"    P&L: ${prices['pnl_usd']:+,.0f} ({prices['pnl_pct']:+.1f}%), "
                   f"DTE={prices['dte']}, Alerts={len(alerts)}")
 
+        except ValueError as e:
+            # 未知策略（不應發生，但優雅處理）
+            print(f"  ⚠️  [{pos_id}] {symbol} {strategy}：{e}")
         except Exception as e:
             err_msg = f"處理 [{pos_id}] {symbol} {strategy} 時發生錯誤: {e}"
             print(f"  ❌ {err_msg}")
