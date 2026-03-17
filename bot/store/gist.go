@@ -52,7 +52,6 @@ func (g *GistStore) Load() (*model.Store, error) {
 
 	file, ok := gistResp.Files[gistFilename]
 	if !ok || file.Content == "" {
-		// 初次使用，回傳空 Store
 		return &model.Store{NextID: 1, Positions: []model.Position{}}, nil
 	}
 
@@ -115,13 +114,23 @@ func (g *GistStore) AddPosition(req *model.AddPositionRequest) (*model.Position,
 		OpenDate:        time.Now().Format("2006-01-02"),
 		Expiry:          req.Expiry,
 		Contracts:       req.Contracts,
+		Notes:           req.Notes,
+		CreatedAt:       time.Now(),
+		ProfitTargetPct: req.DefaultProfitTarget(),
+		LossLimitPct:    req.DefaultLossLimit(),
+
+		// 非 IC 策略欄位
 		StrikeSell:      req.StrikeSell,
 		StrikeBuy:       req.StrikeBuy,
 		PremiumReceived: req.PremiumReceived,
-		ProfitTargetPct: req.DefaultProfitTarget(),
-		LossLimitPct:    req.DefaultLossLimit(),
-		Notes:           req.Notes,
-		CreatedAt:       time.Now(),
+
+		// IC 專用欄位（非 IC 策略這六個會是 0，因 omitempty 不寫入 JSON）
+		PutStrikeShort:  req.PutStrikeShort,
+		PutStrikeLong:   req.PutStrikeLong,
+		PutPremium:      req.PutPremium,
+		CallStrikeShort: req.CallStrikeShort,
+		CallStrikeLong:  req.CallStrikeLong,
+		CallPremium:     req.CallPremium,
 	}
 
 	store.Positions = append(store.Positions, pos)
