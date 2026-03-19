@@ -64,7 +64,7 @@ func (g *GistStore) Load() (*model.Store, error) {
 
 // Save 將 Store 寫回 Gist
 func (g *GistStore) Save(store *model.Store) error {
-	store.LastUpdate = time.Now()
+	store.LastUpdate = time.Now().UTC().Format(time.RFC3339)
 
 	content, err := json.MarshalIndent(store, "", "  ")
 	if err != nil {

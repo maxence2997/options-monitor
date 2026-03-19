@@ -24,7 +24,7 @@ const (
 type Store struct {
 	Positions  []Position `json:"positions"`
 	NextID     int        `json:"next_id"`
-	LastUpdate time.Time  `json:"last_update"`
+	LastUpdate string     `json:"last_update"`
 }
 
 // Position 代表一筆持倉記錄
