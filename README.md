@@ -197,8 +197,8 @@ https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<YOUR_DO
 每月第一個交易日開倉（30-45 DTE）：
   Put Short  = 現價 × 94%
   Put Long   = 現價 × 91%
-  Call Short = 現價 × 106%（填在 notes: call_short=XXX）
-  Call Long  = 現價 × 109%（填在 notes: call_buy=XXX）
+  Call Short = 現價 × 106%（short_call_strike）
+  Call Long  = 現價 × 109%（long_call_strike）
   20 張
 
 收到「獲利 50%」→ 整組平倉，等下月
