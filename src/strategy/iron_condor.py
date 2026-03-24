@@ -8,7 +8,7 @@ SPY Iron Condor（定義風險、穩定收 premium）
   Put Long   = 現價 × 91%  （LONG_PUT_STRIKE）
   Call Short = 現價 × 106% （SHORT_CALL_STRIKE）
   Call Long  = 現價 × 109% （LONG_CALL_STRIKE）
-  在 Moomoo 分兩筆下單，各自記錄 put_premium / call_premium
+  在 Moomoo 分兩筆下單，各自記錄 short/long premium
 
 PnL 計算：
   pricing.py 分別抓 Put Spread + Call Spread 現值加總

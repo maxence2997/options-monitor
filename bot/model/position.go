@@ -62,7 +62,7 @@ type Position struct {
 }
 
 // TotalPremium 回傳此持倉的淨 premium（net = 賣出收入 - 買入成本）
-// IC：(put_premium - long_put_premium) + (call_premium - long_call_premium)
+// IC：(short_put_premium - long_put_premium) + (short_call_premium - long_call_premium)
 // 其他：premium_received
 func (p *Position) TotalPremium() float64 {
 	if p.Strategy == StrategyIronCondor {

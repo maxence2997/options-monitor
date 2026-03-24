@@ -568,7 +568,7 @@ func validateAddRequest(req *model.AddPositionRequest) error {
 			return fmt.Errorf("long_call_premium 必須大於 0（Moomoo 買入 Call Long 的成交價）")
 		}
 		if req.ShortCallPremium <= req.LongCallPremium {
-			return fmt.Errorf("call_premium（%.2f）必須大於 long_call_premium（%.2f）",
+			return fmt.Errorf("short_call_premium（%.2f）必須大於 long_call_premium（%.2f）",
 				req.ShortCallPremium, req.LongCallPremium)
 		}
 		return nil
