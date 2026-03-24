@@ -80,8 +80,8 @@ def get_position_current_value(position: dict) -> dict:
     回傳：stock_price, premium_current, pnl_usd, pnl_pct, distance_pct, dte
 
     IRON_CONDOR 使用專用欄位：
-      put_strike_short, put_strike_long, put_premium
-      call_strike_short, call_strike_long, call_premium
+      short_put_strike, long_put_strike, short_put_premium
+      short_call_strike, long_call_strike, short_call_premium
     其他策略使用：
       strike_sell, strike_buy, premium_received
     """
@@ -95,32 +95,38 @@ def get_position_current_value(position: dict) -> dict:
 
     # ── Iron Condor（Put Spread + Call Spread 分開計算）──────────────
     if strategy == "IRON_CONDOR":
-        put_strike_short  = float(position["PUT_STRIKE_SHORT"])
-        put_strike_long   = float(position["PUT_STRIKE_LONG"])
-        put_premium       = float(position["PUT_PREMIUM"])
-        call_strike_short = float(position["CALL_STRIKE_SHORT"])
-        call_strike_long  = float(position["CALL_STRIKE_LONG"])
-        call_premium      = float(position["CALL_PREMIUM"])
+        short_put_strike  = float(position["SHORT_PUT_STRIKE"])
+        long_put_strike   = float(position["LONG_PUT_STRIKE"])
+        short_put_premium       = float(position["SHORT_PUT_PREMIUM"])
+        long_put_premium  = float(position.get("LONG_PUT_PREMIUM", 0))
+        short_call_strike = float(position["SHORT_CALL_STRIKE"])
+        long_call_strike  = float(position["LONG_CALL_STRIKE"])
+        short_call_premium      = float(position["SHORT_CALL_PREMIUM"])
+        long_call_premium = float(position.get("LONG_CALL_PREMIUM", 0))
 
-        total_premium_received = put_premium + call_premium
+        # Net premium = 賣出收入 - 買入成本（才是真實基準）
+        put_net_premium   = short_put_premium - long_put_premium
+        call_net_premium  = short_call_premium - long_call_premium
+        total_net_premium = put_net_premium + call_net_premium
 
         # 現在平倉需要花的錢（兩側加總）
         put_spread_current  = get_spread_price(symbol, expiry,
-                                               put_strike_short, put_strike_long, "put")
+                                               short_put_strike, long_put_strike, "put")
         call_spread_current = get_spread_price(symbol, expiry,
-                                               call_strike_short, call_strike_long, "call")
-        premium_current = put_spread_current + call_spread_current
+                                               short_call_strike, long_call_strike, "call")
+        # 現在平倉需要花的錢（兩側 net 加總）
+        current_cost = put_spread_current + call_spread_current
+        premium_current = current_cost
 
-        pnl_per_share = total_premium_received - premium_current
+        pnl_per_share = total_net_premium - current_cost
 
-        # distance_pct：取兩側中較近的（正值 = 還在安全區間外）
-        put_distance  = (stock_price - put_strike_short) / stock_price * 100
-        call_distance = (call_strike_short - stock_price) / stock_price * 100
+        put_distance  = (stock_price - short_put_strike) / stock_price * 100
+        call_distance = (short_call_strike - stock_price) / stock_price * 100
         distance_pct  = min(put_distance, call_distance)
 
         pnl_usd = pnl_per_share * 100 * contracts
-        pnl_pct = (pnl_per_share / total_premium_received * 100) \
-                  if total_premium_received != 0 else 0.0
+        pnl_pct = (pnl_per_share / total_net_premium * 100) \
+                  if total_net_premium != 0 else 0.0
 
         return {
             "stock_price":     stock_price,

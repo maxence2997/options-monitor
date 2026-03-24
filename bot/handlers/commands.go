@@ -223,36 +223,38 @@ func (h *CommandHandler) handleExample(text string) string {
 			"expiry":    icExpiry,
 			"contracts": 20,
 
-			// Put Spread（第一筆單）
-			"put_strike_short": 622.00,
-			"put_strike_long":  602.00,
-			"put_premium":      1.40,
+			// Put Spread（第一筆單：賣 short_put_strike，買 long_put_strike）
+			"short_put_strike": 622.00,
+			"long_put_strike":  602.00,
+			"short_put_premium":      8.92, // 賣出腳成交價
+			"long_put_premium": 5.95, // 買入腳成交價
 
-			// Call Spread（第二筆單）
-			"call_strike_short": 702.00,
-			"call_strike_long":  722.00,
-			"call_premium":      1.10,
+			// Call Spread（第二筆單：賣 short_call_strike，買 long_call_strike）
+			"short_call_strike": 702.00,
+			"long_call_strike":  722.00,
+			"short_call_premium":      2.29, // 賣出腳成交價
+			"long_call_premium": 0.46, // 買入腳成交價
 
 			"profit_target_pct": 50,
 			"loss_limit_pct":    200,
 			"notes":             "",
 		}
 		note = "💡 <b>SPY Iron Condor 填寫提示</b>\n\n" +
-			"<b>在 Moomoo 要下兩筆單：</b>\n" +
-			"① Sell Put Spread：賣 put_strike_short，買 put_strike_long\n" +
-			"② Sell Call Spread：賣 call_strike_short，買 call_strike_long\n\n" +
+			"<b>在 Moomoo 要下四筆單腿：</b>\n" +
+			"① 賣出 Put Short（short_put_strike）→ 記下成交價 → short_put_premium\n" +
+			"② 買入 Put Long（long_put_strike）→ 記下成交價 → long_put_premium\n" +
+			"③ 賣出 Call Short（short_call_strike）→ 記下成交價 → short_call_premium\n" +
+			"④ 買入 Call Long（long_call_strike）→ 記下成交價 → long_call_premium\n\n" +
 			"<b>到期日選擇：</b>\n" +
-			"• 每月第一個交易日開倉，選 30-45 天後的週五到期\n" +
-			"• expiry 填寫格式：YYYY-MM-DD（例：2026-04-25）\n\n" +
+			"• 每月第一個交易日開倉，選 30-45 天後的週五到期\n\n" +
 			"<b>Strike 計算：</b>\n" +
-			"• put_strike_short  = 現價 × 94%\n" +
-			"• put_strike_long   = 現價 × 91%\n" +
-			"• call_strike_short = 現價 × 106%\n" +
-			"• call_strike_long  = 現價 × 109%\n\n" +
-			"<b>Premium 填寫：</b>\n" +
-			"• put_premium  = 第一筆單 Moomoo 顯示的 Net Credit（每股）\n" +
-			"• call_premium = 第二筆單 Moomoo 顯示的 Net Credit（每股）\n" +
-			"• 系統自動加總計算總 PnL，不需要手動合計"
+			"• short_put_strike  = 現價 × 94%\n" +
+			"• long_put_strike   = 現價 × 91%\n" +
+			"• short_call_strike = 現價 × 106%\n" +
+			"• long_call_strike  = 現價 × 109%\n\n" +
+			"<b>系統自動計算：</b>\n" +
+			"Net Premium = (short_put_premium - long_put_premium) + (short_call_premium - long_call_premium)\n" +
+			"P&L 以 Net Premium 為基準，才是真實收益"
 
 	case "bull_call":
 		template = map[string]interface{}{
@@ -326,19 +328,25 @@ func (h *CommandHandler) handleAdd(text string) string {
 	}
 
 	if pos.Strategy == model.StrategyIronCondor {
+		putNet  := pos.ShortPutPremium - pos.LongPutPremium
+		callNet := pos.ShortCallPremium - pos.LongCallPremium
 		return fmt.Sprintf(
 			"✅ <b>IC 持倉已新增</b>\n\n"+
 				"ID：%d | %s %s\n"+
 				"到期日：%s | 張數：%d\n\n"+
-				"Put Spread：%.0f / %.0f | Premium：%.2f\n"+
-				"Call Spread：%.0f / %.0f | Premium：%.2f\n"+
-				"Total Premium：<b>%.2f</b>（系統自動加總）\n\n"+
+				"Put Spread：%.0f / %.0f\n"+
+				"  賣出：%.2f | 買入：%.2f | <b>Net：%.2f</b>\n"+
+				"Call Spread：%.0f / %.0f\n"+
+				"  賣出：%.2f | 買入：%.2f | <b>Net：%.2f</b>\n\n"+
+				"<b>Total Net Premium：%.2f</b>（PnL 計算基準）\n"+
 				"獲利目標：%.0f%% | 停損：%.0f%%\n\n"+
 				"📊 系統將在下次 cron 執行時開始監控此持倉",
 			pos.ID, pos.Symbol, pos.Strategy,
 			pos.Expiry, pos.Contracts,
-			pos.PutStrikeShort, pos.PutStrikeLong, pos.PutPremium,
-			pos.CallStrikeShort, pos.CallStrikeLong, pos.CallPremium,
+			pos.ShortPutStrike, pos.LongPutStrike,
+			pos.ShortPutPremium, pos.LongPutPremium, putNet,
+			pos.ShortCallStrike, pos.LongCallStrike,
+			pos.ShortCallPremium, pos.LongCallPremium, callNet,
 			pos.TotalPremium(),
 			pos.ProfitTargetPct, pos.LossLimitPct,
 		)
@@ -390,10 +398,10 @@ func (h *CommandHandler) handleList() string {
 				"<b>[%d] %s %s</b>%s\n"+
 					"  Put: %.0f/%.0f | Call: %.0f/%.0f\n"+
 					"  到期: %s（%d天）| %d張\n"+
-					"  Total Premium: %.2f | 目標: %.0f%% 停損: %.0f%%\n",
+					"  Net Premium: %.2f | 目標: %.0f%% 停損: %.0f%%\n",
 				p.ID, p.Symbol, p.Strategy, dteWarning,
-				p.PutStrikeShort, p.PutStrikeLong,
-				p.CallStrikeShort, p.CallStrikeLong,
+				p.ShortPutStrike, p.LongPutStrike,
+				p.ShortCallStrike, p.LongCallStrike,
 				p.Expiry, daysLeft, p.Contracts,
 				p.TotalPremium(),
 				p.ProfitTargetPct, p.LossLimitPct,
@@ -523,31 +531,45 @@ func validateAddRequest(req *model.AddPositionRequest) error {
 
 	// IC 專用驗證
 	if req.Strategy == model.StrategyIronCondor {
-		if req.PutStrikeShort <= 0 {
-			return fmt.Errorf("put_strike_short 必須大於 0")
+		if req.ShortPutStrike <= 0 {
+			return fmt.Errorf("short_put_strike 必須大於 0")
 		}
-		if req.PutStrikeLong <= 0 {
-			return fmt.Errorf("put_strike_long 必須大於 0")
+		if req.LongPutStrike <= 0 {
+			return fmt.Errorf("long_put_strike 必須大於 0")
 		}
-		if req.PutStrikeShort <= req.PutStrikeLong {
-			return fmt.Errorf("put_strike_short（%.0f）必須大於 put_strike_long（%.0f）",
-				req.PutStrikeShort, req.PutStrikeLong)
+		if req.ShortPutStrike <= req.LongPutStrike {
+			return fmt.Errorf("short_put_strike（%.0f）必須大於 long_put_strike（%.0f）",
+				req.ShortPutStrike, req.LongPutStrike)
 		}
-		if req.CallStrikeShort <= 0 {
-			return fmt.Errorf("call_strike_short 必須大於 0")
+		if req.ShortCallStrike <= 0 {
+			return fmt.Errorf("short_call_strike 必須大於 0")
 		}
-		if req.CallStrikeLong <= 0 {
-			return fmt.Errorf("call_strike_long 必須大於 0")
+		if req.LongCallStrike <= 0 {
+			return fmt.Errorf("long_call_strike 必須大於 0")
 		}
-		if req.CallStrikeLong <= req.CallStrikeShort {
-			return fmt.Errorf("call_strike_long（%.0f）必須大於 call_strike_short（%.0f）",
-				req.CallStrikeLong, req.CallStrikeShort)
+		if req.LongCallStrike <= req.ShortCallStrike {
+			return fmt.Errorf("long_call_strike（%.0f）必須大於 short_call_strike（%.0f）",
+				req.LongCallStrike, req.ShortCallStrike)
 		}
-		if req.PutPremium <= 0 {
-			return fmt.Errorf("put_premium 必須大於 0（Moomoo Put Spread 成交的 Net Credit）")
+		if req.ShortPutPremium <= 0 {
+			return fmt.Errorf("short_put_premium 必須大於 0（Moomoo 賣出 Put Short 的成交價）")
 		}
-		if req.CallPremium <= 0 {
-			return fmt.Errorf("call_premium 必須大於 0（Moomoo Call Spread 成交的 Net Credit）")
+		if req.LongPutPremium <= 0 {
+			return fmt.Errorf("long_put_premium 必須大於 0（Moomoo 買入 Put Long 的成交價）")
+		}
+		if req.ShortPutPremium <= req.LongPutPremium {
+			return fmt.Errorf("short_put_premium（%.2f）必須大於 long_put_premium（%.2f）",
+				req.ShortPutPremium, req.LongPutPremium)
+		}
+		if req.ShortCallPremium <= 0 {
+			return fmt.Errorf("short_call_premium 必須大於 0（Moomoo 賣出 Call Short 的成交價）")
+		}
+		if req.LongCallPremium <= 0 {
+			return fmt.Errorf("long_call_premium 必須大於 0（Moomoo 買入 Call Long 的成交價）")
+		}
+		if req.ShortCallPremium <= req.LongCallPremium {
+			return fmt.Errorf("call_premium（%.2f）必須大於 long_call_premium（%.2f）",
+				req.ShortCallPremium, req.LongCallPremium)
 		}
 		return nil
 	}

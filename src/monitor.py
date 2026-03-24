@@ -34,12 +34,14 @@ def _build_pricing_input(pos: dict) -> dict:
 
     if strategy == "IRON_CONDOR":
         base.update({
-            "PUT_STRIKE_SHORT":  pos["put_strike_short"],
-            "PUT_STRIKE_LONG":   pos["put_strike_long"],
-            "PUT_PREMIUM":       pos["put_premium"],
-            "CALL_STRIKE_SHORT": pos["call_strike_short"],
-            "CALL_STRIKE_LONG":  pos["call_strike_long"],
-            "CALL_PREMIUM":      pos["call_premium"],
+            "SHORT_PUT_STRIKE":  pos["short_put_strike"],
+            "LONG_PUT_STRIKE":   pos["long_put_strike"],
+            "SHORT_PUT_PREMIUM":       pos["short_put_premium"],
+            "LONG_PUT_PREMIUM":  pos.get("long_put_premium", 0),
+            "SHORT_CALL_STRIKE": pos["short_call_strike"],
+            "LONG_CALL_STRIKE":  pos["long_call_strike"],
+            "SHORT_CALL_PREMIUM":      pos["short_call_premium"],
+            "LONG_CALL_PREMIUM": pos.get("long_call_premium", 0),
         })
     else:
         base.update({
@@ -69,14 +71,15 @@ def _build_sheet_pos(pos: dict) -> dict:
 
     if strategy == "IRON_CONDOR":
         sheet.update({
-            "PUT_STRIKE_SHORT":  pos["put_strike_short"],
-            "PUT_STRIKE_LONG":   pos["put_strike_long"],
-            "PUT_PREMIUM":       pos["put_premium"],
-            "CALL_STRIKE_SHORT": pos["call_strike_short"],
-            "CALL_STRIKE_LONG":  pos["call_strike_long"],
-            "CALL_PREMIUM":      pos["call_premium"],
-            # iron_condor.py 的 breach 檢查沿用 STRIKE_SELL 當 put_short
-            "STRIKE_SELL":       pos["put_strike_short"],
+            "SHORT_PUT_STRIKE":  pos["short_put_strike"],
+            "LONG_PUT_STRIKE":   pos["long_put_strike"],
+            "SHORT_PUT_PREMIUM":       pos["short_put_premium"],
+            "LONG_PUT_PREMIUM":  pos.get("long_put_premium", 0),
+            "SHORT_CALL_STRIKE": pos["short_call_strike"],
+            "LONG_CALL_STRIKE":  pos["long_call_strike"],
+            "SHORT_CALL_PREMIUM":      pos["short_call_premium"],
+            "LONG_CALL_PREMIUM": pos.get("long_call_premium", 0),
+            "STRIKE_SELL":       pos["short_put_strike"],
         })
     else:
         sheet.update({

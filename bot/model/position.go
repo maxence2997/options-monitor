@@ -45,24 +45,36 @@ type Position struct {
 	PremiumReceived float64 `json:"premium_received,omitempty"`
 
 	// ── IC 專用欄位（IRON_CONDOR）────────────────────────────────────────
-	// 在 Moomoo 分兩筆下單，put_premium / call_premium 各自記錄
-	PutStrikeShort  float64 `json:"put_strike_short,omitempty"`
-	PutStrikeLong   float64 `json:"put_strike_long,omitempty"`
-	PutPremium      float64 `json:"put_premium,omitempty"`
-	CallStrikeShort float64 `json:"call_strike_short,omitempty"`
-	CallStrikeLong  float64 `json:"call_strike_long,omitempty"`
-	CallPremium     float64 `json:"call_premium,omitempty"`
+	// 在 Moomoo 分兩筆下單，各自記錄 short/long premium
+	// net premium = short - long（系統自動計算，作為 PnL 基準）
+	ShortPutStrike  float64 `json:"short_put_strike,omitempty"`
+	LongPutStrike   float64 `json:"long_put_strike,omitempty"`
+	ShortPutPremium      float64 `json:"short_put_premium,omitempty"`       // 賣出腳收到的 premium
+	LongPutPremium  float64 `json:"long_put_premium,omitempty"`  // 買入腳付出的 premium
+	ShortCallStrike float64 `json:"short_call_strike,omitempty"`
+	LongCallStrike  float64 `json:"long_call_strike,omitempty"`
+	ShortCallPremium     float64 `json:"short_call_premium,omitempty"`      // 賣出腳收到的 premium
+	LongCallPremium float64 `json:"long_call_premium,omitempty"` // 買入腳付出的 premium
 
 	// ── 共用設定 ──────────────────────────────────────────────────────────
 	ProfitTargetPct float64 `json:"profit_target_pct"`
 	LossLimitPct    float64 `json:"loss_limit_pct"`
 }
 
-// TotalPremium 回傳此持倉的總 premium
-// IC：put_premium + call_premium；其他：premium_received
+// TotalPremium 回傳此持倉的淨 premium（net = 賣出收入 - 買入成本）
+// IC：(put_premium - long_put_premium) + (call_premium - long_call_premium)
+// 其他：premium_received
 func (p *Position) TotalPremium() float64 {
 	if p.Strategy == StrategyIronCondor {
-		return p.PutPremium + p.CallPremium
+		return (p.ShortPutPremium - p.LongPutPremium) + (p.ShortCallPremium - p.LongCallPremium)
+	}
+	return p.PremiumReceived
+}
+
+// GrossPremium 回傳賣出腳合計（顯示用，不作為 PnL 基準）
+func (p *Position) GrossPremium() float64 {
+	if p.Strategy == StrategyIronCondor {
+		return p.ShortPutPremium + p.ShortCallPremium
 	}
 	return p.PremiumReceived
 }
@@ -83,22 +95,24 @@ type AddPositionRequest struct {
 	PremiumReceived float64 `json:"premium_received,omitempty"`
 
 	// IC 專用
-	PutStrikeShort  float64 `json:"put_strike_short,omitempty"`
-	PutStrikeLong   float64 `json:"put_strike_long,omitempty"`
-	PutPremium      float64 `json:"put_premium,omitempty"`
-	CallStrikeShort float64 `json:"call_strike_short,omitempty"`
-	CallStrikeLong  float64 `json:"call_strike_long,omitempty"`
-	CallPremium     float64 `json:"call_premium,omitempty"`
+	ShortPutStrike  float64 `json:"short_put_strike,omitempty"`
+	LongPutStrike   float64 `json:"long_put_strike,omitempty"`
+	ShortPutPremium      float64 `json:"short_put_premium,omitempty"`
+	LongPutPremium  float64 `json:"long_put_premium,omitempty"`
+	ShortCallStrike float64 `json:"short_call_strike,omitempty"`
+	LongCallStrike  float64 `json:"long_call_strike,omitempty"`
+	ShortCallPremium     float64 `json:"short_call_premium,omitempty"`
+	LongCallPremium float64 `json:"long_call_premium,omitempty"`
 
 	// 共用設定（選填，未填則用策略預設值）
 	ProfitTargetPct float64 `json:"profit_target_pct,omitempty"`
 	LossLimitPct    float64 `json:"loss_limit_pct,omitempty"`
 }
 
-// TotalPremium 同 Position.TotalPremium，用於 request 階段
+// TotalPremium 同 Position.TotalPremium，用於 request 階段（net premium）
 func (r *AddPositionRequest) TotalPremium() float64 {
 	if r.Strategy == StrategyIronCondor {
-		return r.PutPremium + r.CallPremium
+		return (r.ShortPutPremium - r.LongPutPremium) + (r.ShortCallPremium - r.LongCallPremium)
 	}
 	return r.PremiumReceived
 }
