@@ -4,8 +4,8 @@ BULL_CALL_SPREAD 策略監控規則
 QQQ 方向性押注（買方策略）
 
 進場：每 2 個月 1 次，DTE 45-60 天，10 張
-  買 ATM Call（STRIKE_SELL）
-  賣 +10% Call（STRIKE_BUY）
+  買 ATM Call（LONG_CALL_STRIKE）
+  賣 +10% Call（SHORT_CALL_STRIKE）
   premium_received 為負數（付出成本）
 
 最大損益：

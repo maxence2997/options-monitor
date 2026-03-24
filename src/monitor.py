@@ -43,11 +43,26 @@ def _build_pricing_input(pos: dict) -> dict:
             "SHORT_CALL_PREMIUM":      pos["short_call_premium"],
             "LONG_CALL_PREMIUM": pos.get("long_call_premium", 0),
         })
-    else:
+    elif strategy == "BULL_CALL_SPREAD":
         base.update({
-            "STRIKE_SELL":      pos["strike_sell"],
-            "STRIKE_BUY":       pos.get("strike_buy", 0),
+            "LONG_CALL_STRIKE":  pos["long_call_strike"],
+            "SHORT_CALL_STRIKE": pos["short_call_strike"],
+            "PREMIUM_RECEIVED":  pos["premium_received"],
+        })
+    elif strategy == "HEDGE_PUT":
+        base.update({
+            "LONG_PUT_STRIKE":  pos["long_put_strike"],
             "PREMIUM_RECEIVED": pos["premium_received"],
+        })
+    elif strategy == "WHEEL_CSP":
+        base.update({
+            "SHORT_PUT_STRIKE": pos["short_put_strike"],
+            "PREMIUM_RECEIVED": pos["premium_received"],
+        })
+    elif strategy == "WHEEL_CC":
+        base.update({
+            "SHORT_CALL_STRIKE": pos["short_call_strike"],
+            "PREMIUM_RECEIVED":  pos["premium_received"],
         })
 
     return base
@@ -79,12 +94,23 @@ def _build_sheet_pos(pos: dict) -> dict:
             "LONG_CALL_STRIKE":  pos["long_call_strike"],
             "SHORT_CALL_PREMIUM":      pos["short_call_premium"],
             "LONG_CALL_PREMIUM": pos.get("long_call_premium", 0),
-            "STRIKE_SELL":       pos["short_put_strike"],
         })
-    else:
+    elif strategy == "BULL_CALL_SPREAD":
         sheet.update({
-            "STRIKE_SELL": pos["strike_sell"],
-            "STRIKE_BUY":  pos.get("strike_buy", 0),
+            "LONG_CALL_STRIKE":  pos["long_call_strike"],
+            "SHORT_CALL_STRIKE": pos["short_call_strike"],
+        })
+    elif strategy == "HEDGE_PUT":
+        sheet.update({
+            "LONG_PUT_STRIKE": pos["long_put_strike"],
+        })
+    elif strategy == "WHEEL_CSP":
+        sheet.update({
+            "SHORT_PUT_STRIKE": pos["short_put_strike"],
+        })
+    elif strategy == "WHEEL_CC":
+        sheet.update({
+            "SHORT_CALL_STRIKE": pos["short_call_strike"],
         })
 
     return sheet

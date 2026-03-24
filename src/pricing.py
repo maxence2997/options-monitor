@@ -79,11 +79,12 @@ def get_position_current_value(position: dict) -> dict:
     計算單一持倉的即時數據。
     回傳：stock_price, premium_current, pnl_usd, pnl_pct, distance_pct, dte
 
-    IRON_CONDOR 使用專用欄位：
-      short_put_strike, long_put_strike, short_put_premium
-      short_call_strike, long_call_strike, short_call_premium
-    其他策略使用：
-      strike_sell, strike_buy, premium_received
+    所有策略統一使用 short/long + put/call + strike 命名：
+      WHEEL_CSP:  short_put_strike
+      WHEEL_CC:   short_call_strike
+      IC:         short_put_strike, long_put_strike, short_call_strike, long_call_strike
+      BCS:        long_call_strike, short_call_strike
+      HEDGE_PUT:  long_put_strike
     """
     symbol    = position["SYMBOL"]
     strategy  = position["STRATEGY"].upper()
@@ -140,31 +141,39 @@ def get_position_current_value(position: dict) -> dict:
             "call_spread_current": call_spread_current,
         }
 
-    # ── 其他策略（原有邏輯不動）──────────────────────────────────────
-    strike_sell      = float(position["STRIKE_SELL"])
-    strike_buy       = float(position.get("STRIKE_BUY") or 0)
+    # ── 其他策略 ─────────────────────────────────────────────────────────
     premium_received = float(position["PREMIUM_RECEIVED"])
 
     if strategy == "WHEEL_CSP":
-        premium_current = get_option_price(symbol, expiry, strike_sell, "put")
-        pnl_per_share   = premium_received - premium_current
-        distance_pct    = (stock_price - strike_sell) / stock_price * 100
+        short_put_strike = float(position["SHORT_PUT_STRIKE"])
+        premium_current  = get_option_price(symbol, expiry, short_put_strike, "put")
+        pnl_per_share    = premium_received - premium_current
+        distance_pct     = (stock_price - short_put_strike) / stock_price * 100
 
     elif strategy == "WHEEL_CC":
-        premium_current = get_option_price(symbol, expiry, strike_sell, "call")
-        pnl_per_share   = premium_received - premium_current
-        distance_pct    = (strike_sell - stock_price) / stock_price * 100
+        short_call_strike = float(position["SHORT_CALL_STRIKE"])
+        premium_current   = get_option_price(symbol, expiry, short_call_strike, "call")
+        pnl_per_share     = premium_received - premium_current
+        distance_pct      = (short_call_strike - stock_price) / stock_price * 100
 
     elif strategy == "BULL_CALL_SPREAD":
-        spread_current  = get_spread_price(symbol, expiry, strike_sell, strike_buy, "call")
+        # long_call_strike = 你買入的 ATM Call（低 Strike）
+        # short_call_strike = 你賣出的 OTM Call（高 Strike）
+        buy_strike  = float(position["LONG_CALL_STRIKE"])
+        sell_strike = float(position["SHORT_CALL_STRIKE"])
+
+        spread_current  = get_spread_price(symbol, expiry, buy_strike, sell_strike, "call")
         premium_current = spread_current
         pnl_per_share   = premium_current - abs(premium_received)
-        distance_pct    = (stock_price - strike_sell) / stock_price * 100
+        distance_pct    = (stock_price - buy_strike) / stock_price * 100
 
     elif strategy == "HEDGE_PUT":
-        premium_current = get_option_price(symbol, expiry, strike_sell, "put")
+        # long_put_strike = 你買入的 OTM Put Strike（現價 × 85%）
+        long_put_strike = float(position["LONG_PUT_STRIKE"])
+
+        premium_current = get_option_price(symbol, expiry, long_put_strike, "put")
         pnl_per_share   = premium_current - abs(premium_received)
-        distance_pct    = (strike_sell - stock_price) / stock_price * 100
+        distance_pct    = (long_put_strike - stock_price) / stock_price * 100
 
     else:
         premium_current = 0.0

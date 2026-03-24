@@ -113,7 +113,7 @@ class HedgePutStrategy(BaseStrategy):
         例：Strike $480，現價 $530 → 漲幅 (530-480)/480 = 10.4% → 觸發
         """
         stock_price = price_data["stock_price"]
-        strike      = float(position["STRIKE_SELL"])
+        strike      = float(position["LONG_PUT_STRIKE"])
         symbol      = position["SYMBOL"]
 
         if strike <= 0:

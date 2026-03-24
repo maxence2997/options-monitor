@@ -186,31 +186,31 @@ func (h *CommandHandler) handleExample(text string) string {
 			"symbol":            "NVDA",
 			"expiry":            expiry,
 			"contracts":         15,
-			"strike_sell":       158.00,
+			"short_put_strike":  158.00,
 			"premium_received":  3.50,
 			"profit_target_pct": 50,
 			"loss_limit_pct":    300,
 			"notes":             "",
 		}
 		note = "💡 <b>NVDA CSP 填寫提示</b>\n" +
-			"• strike_sell = 現價 × 88%（例：現價 $180 → strike $158）\n" +
+			"• short_put_strike = 現價 × 88%（例：現價 $180 → strike $158）\n" +
 			"• premium_received = Moomoo 成交確認的 Net Credit（每股）\n" +
 			"• expiry = 21-30 天後的週五到期日"
 
 	case "wheel_cc":
 		template = map[string]interface{}{
-			"strategy":          "WHEEL_CC",
-			"symbol":            "NVDA",
-			"expiry":            expiry,
-			"contracts":         15,
-			"strike_sell":       195.00,
-			"premium_received":  2.80,
-			"profit_target_pct": 50,
-			"loss_limit_pct":    200,
-			"notes":             "assigned_cost=158.00",
+			"strategy":           "WHEEL_CC",
+			"symbol":             "NVDA",
+			"expiry":             expiry,
+			"contracts":          15,
+			"short_call_strike":  195.00,
+			"premium_received":   2.80,
+			"profit_target_pct":  50,
+			"loss_limit_pct":     200,
+			"notes":              "assigned_cost=158.00",
 		}
 		note = "💡 <b>NVDA CC 填寫提示</b>\n" +
-			"• strike_sell = 被 Assign 成本價 × 105%\n" +
+			"• short_call_strike = 被 Assign 成本價 × 105%\n" +
 			"• premium_received = Moomoo 成交確認的 Net Credit（每股）\n" +
 			"• expiry = 被 Assign 後立即開，選 14-21 天後的週五到期日\n" +
 			"• notes 填入 assigned_cost=你的成本價，方便追蹤"
@@ -262,8 +262,8 @@ func (h *CommandHandler) handleExample(text string) string {
 			"symbol":            "QQQ",
 			"expiry":            nextFriday(today.AddDate(0, 0, 50)),
 			"contracts":         10,
-			"strike_sell":       595.00,
-			"strike_buy":        655.00,
+			"long_call_strike":   595.00, // 你「買入」的 ATM Call（低 Strike，持有腳）
+			"short_call_strike":  655.00, // 你「賣出」的 OTM Call（高 Strike，限制獲利上限）
 			"premium_received":  -3.20,
 			"profit_target_pct": 100,
 			"loss_limit_pct":    100,
@@ -271,10 +271,10 @@ func (h *CommandHandler) handleExample(text string) string {
 		}
 		note = "💡 <b>QQQ Bull Call Spread 填寫提示</b>\n" +
 			"• expiry = 每 2 個月開倉一次，選 45-60 天後的週五到期日\n" +
-			"• strike_sell = 買入的 Call（ATM 附近）\n" +
-			"• strike_buy  = 賣出的 Call（+10% Strike）\n" +
+			"• long_call_strike  = 你「買入」的 Call（ATM 附近，低 Strike）\n" +
+			"• short_call_strike = 你「賣出」的 Call（+10% Strike，高 Strike）\n" +
 			"• premium_received = <b>負數</b>（付出的成本，例 -3.20）\n" +
-			"• 最大虧損 = premium 本金，最大獲利 = spread 寬度 - 成本"
+			"• 最大獲利 = spread 寬度 - 成本 | 最大虧損 = premium 本金"
 
 	case "hedge":
 		template = map[string]interface{}{
@@ -282,7 +282,7 @@ func (h *CommandHandler) handleExample(text string) string {
 			"symbol":            "SPY",
 			"expiry":            nextFriday(today.AddDate(0, 3, 0)),
 			"contracts":         5,
-			"strike_sell":       563.00,
+			"long_put_strike":   563.00, // 你「買入」的 OTM Put Strike（現價 × 85%）
 			"premium_received":  -1.80,
 			"profit_target_pct": 200,
 			"loss_limit_pct":    100,
@@ -290,7 +290,7 @@ func (h *CommandHandler) handleExample(text string) string {
 		}
 		note = "💡 <b>SPY Hedge Put 填寫提示</b>\n" +
 			"• expiry = 每季開倉一次，選約 90 天後的到期日\n" +
-			"• strike_sell = 現價 × 85%（深度 OTM）\n" +
+			"• long_put_strike = 你「買入」的 OTM Put Strike（現價 × 85%，深度 OTM）\n" +
 			"• premium_received = <b>負數</b>（付出的保費）\n" +
 			"• 這是黑天鵝保險，到期歸零是正常結果，不會發停損通知"
 
@@ -352,19 +352,53 @@ func (h *CommandHandler) handleAdd(text string) string {
 		)
 	}
 
+	if pos.Strategy == model.StrategyBullCallSpread {
+		return fmt.Sprintf(
+			"✅ <b>Bull Call Spread 持倉已新增</b>\n\n"+
+				"ID：%d | %s\n"+
+				"到期日：%s | 張數：%d\n"+
+				"買入 Call：%.0f | 賣出 Call：%.0f\n"+
+				"Net Debit：%.2f（付出成本）\n"+
+				"獲利目標：%.0f%% | 停損：%.0f%%\n\n"+
+				"📊 系統將在下次 cron 執行時開始監控此持倉",
+			pos.ID, pos.Symbol,
+			pos.Expiry, pos.Contracts,
+			pos.LongCallStrike, pos.ShortCallStrike,
+			pos.PremiumReceived,
+			pos.ProfitTargetPct, pos.LossLimitPct,
+		)
+	}
+
+	if pos.Strategy == model.StrategyHedgePut {
+		return fmt.Sprintf(
+			"✅ <b>Hedge Put 持倉已新增</b>\n\n"+
+				"ID：%d | %s\n"+
+				"到期日：%s | 張數：%d\n"+
+				"買入 Put Strike：%.0f\n"+
+				"保費成本：%.2f\n"+
+				"獲利目標：%.0f%% | 停損：%.0f%%\n\n"+
+				"📊 系統將在下次 cron 執行時開始監控此持倉",
+			pos.ID, pos.Symbol,
+			pos.Expiry, pos.Contracts,
+			pos.LongPutStrike,
+			pos.PremiumReceived,
+			pos.ProfitTargetPct, pos.LossLimitPct,
+		)
+	}
+
 	return fmt.Sprintf(
 		"✅ <b>持倉已新增</b>\n\n"+
 			"ID：%d\n"+
 			"策略：%s\n"+
 			"標的：%s\n"+
-			"Strike：%.2f%s\n"+
+			"Strike：%.2f\n"+
 			"到期日：%s\n"+
 			"張數：%d\n"+
 			"Premium：%.2f\n"+
 			"獲利目標：%.0f%% | 停損：%.0f%%\n\n"+
 			"📊 系統將在下次 cron 執行時開始監控此持倉",
 		pos.ID, pos.Strategy, pos.Symbol,
-		pos.StrikeSell, strikeRangeStr(pos),
+		pos.MainStrike(),
 		pos.Expiry, pos.Contracts, pos.PremiumReceived,
 		pos.ProfitTargetPct, pos.LossLimitPct,
 	)
@@ -406,13 +440,36 @@ func (h *CommandHandler) handleList() string {
 				p.TotalPremium(),
 				p.ProfitTargetPct, p.LossLimitPct,
 			)
-		} else {
+		} else if p.Strategy == model.StrategyBullCallSpread {
 			fmt.Fprintf(&sb,
 				"<b>[%d] %s %s</b>%s\n"+
-					"  Strike: %.0f%s | 到期: %s（%d天）\n"+
+					"  買入: %.0f | 賣出: %.0f | 到期: %s（%d天）\n"+
+					"  %d張 | Net Debit: %.2f | 目標: %.0f%% 停損: %.0f%%\n",
+				p.ID, p.Symbol, p.Strategy, dteWarning,
+				p.LongCallStrike, p.ShortCallStrike,
+				p.Expiry, daysLeft,
+				p.Contracts, p.PremiumReceived,
+				p.ProfitTargetPct, p.LossLimitPct,
+			)
+		} else if p.Strategy == model.StrategyHedgePut {
+			fmt.Fprintf(&sb,
+				"<b>[%d] %s %s</b>%s\n"+
+					"  買入 Put Strike: %.0f | 到期: %s（%d天）\n"+
+					"  %d張 | 保費: %.2f | 目標: %.0f%% 停損: %.0f%%\n",
+				p.ID, p.Symbol, p.Strategy, dteWarning,
+				p.LongPutStrike,
+				p.Expiry, daysLeft,
+				p.Contracts, p.PremiumReceived,
+				p.ProfitTargetPct, p.LossLimitPct,
+			)
+		} else {
+			// WHEEL_CSP / WHEEL_CC
+			fmt.Fprintf(&sb,
+				"<b>[%d] %s %s</b>%s\n"+
+					"  Strike: %.0f | 到期: %s（%d天）\n"+
 					"  %d張 | Premium: %.2f | 目標: %.0f%% 停損: %.0f%%\n",
 				p.ID, p.Symbol, p.Strategy, dteWarning,
-				p.StrikeSell, strikeRangeStr(&p),
+				p.MainStrike(),
 				p.Expiry, daysLeft,
 				p.Contracts, p.PremiumReceived,
 				p.ProfitTargetPct, p.LossLimitPct,
@@ -463,7 +520,7 @@ func (h *CommandHandler) handleAssign(text string) string {
 		return fmt.Sprintf("❌ %v", err)
 	}
 
-	ccStrike := pos.StrikeSell * 1.05
+	ccStrike := pos.ShortPutStrike * 1.05
 	return fmt.Sprintf(
 		"📌 <b>已標記為 ASSIGNED</b>\n\n"+
 			"ID：%d | %s\n"+
@@ -471,11 +528,11 @@ func (h *CommandHandler) handleAssign(text string) string {
 			"━━━━━━━━━━━━━━━━━━━━\n"+
 			"<b>👉 下一步：開 Covered Call</b>\n\n"+
 			"用 /example wheel_cc 取得模板，建議參數：\n"+
-			"• strike_sell = <b>%.2f</b>（成本 × 105%%）\n"+
+			"• short_call_strike = <b>%.2f</b>（成本 × 105%%）\n"+
 			"• DTE = 14-21 天後的週五\n"+
 			"• contracts = %d（同等張數）\n\n"+
 			"開好後記得 /add 登記！",
-		pos.ID, pos.Symbol, pos.StrikeSell, ccStrike, pos.Contracts,
+		pos.ID, pos.Symbol, pos.ShortPutStrike, ccStrike, pos.Contracts,
 	)
 }
 
@@ -575,11 +632,42 @@ func validateAddRequest(req *model.AddPositionRequest) error {
 	}
 
 	// 非 IC 策略驗證
-	if req.StrikeSell <= 0 {
-		return fmt.Errorf("strike_sell 必須大於 0")
-	}
-	if req.PremiumReceived == 0 {
-		return fmt.Errorf("premium_received 不能為 0（買方策略填負數）")
+	switch req.Strategy {
+	case model.StrategyBullCallSpread:
+		if req.LongCallStrike <= 0 {
+			return fmt.Errorf("long_call_strike 必須大於 0（你買入的 ATM Call Strike）")
+		}
+		if req.ShortCallStrike <= 0 {
+			return fmt.Errorf("short_call_strike 必須大於 0（你賣出的 OTM Call Strike）")
+		}
+		if req.ShortCallStrike <= req.LongCallStrike {
+			return fmt.Errorf("short_call_strike（%.0f）必須大於 long_call_strike（%.0f）",
+				req.ShortCallStrike, req.LongCallStrike)
+		}
+		if req.PremiumReceived >= 0 {
+			return fmt.Errorf("premium_received 必須為負數（Bull Call Spread 是付出成本，例 -3.20）")
+		}
+	case model.StrategyHedgePut:
+		if req.LongPutStrike <= 0 {
+			return fmt.Errorf("long_put_strike 必須大於 0（你買入的 OTM Put Strike）")
+		}
+		if req.PremiumReceived >= 0 {
+			return fmt.Errorf("premium_received 必須為負數（Hedge Put 是付出保費，例 -1.80）")
+		}
+	case model.StrategyWheelCSP:
+		if req.ShortPutStrike <= 0 {
+			return fmt.Errorf("short_put_strike 必須大於 0")
+		}
+		if req.PremiumReceived == 0 {
+			return fmt.Errorf("premium_received 不能為 0")
+		}
+	case model.StrategyWheelCC:
+		if req.ShortCallStrike <= 0 {
+			return fmt.Errorf("short_call_strike 必須大於 0")
+		}
+		if req.PremiumReceived == 0 {
+			return fmt.Errorf("premium_received 不能為 0")
+		}
 	}
 	return nil
 }
@@ -594,13 +682,6 @@ func parseID(text, cmd string) (int, error) {
 		return 0, fmt.Errorf("❓ ID 格式錯誤，請輸入數字，例如：<code>%s 3</code>", cmd)
 	}
 	return id, nil
-}
-
-func strikeRangeStr(p *model.Position) string {
-	if p.StrikeBuy > 0 {
-		return fmt.Sprintf(" / %.0f", p.StrikeBuy)
-	}
-	return ""
 }
 
 func daysUntil(dateStr string) int {

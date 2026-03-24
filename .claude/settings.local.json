@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/maxence/IdeaProjects/Personal/options-monitor -type f -not -path */.* -not -path *.git*)",
+      "Bash(go build:*)",
+      "Bash(python -c \"from pricing import get_position_current_value; from monitor import _build_pricing_input, _build_sheet_pos; print\\(''Python imports OK''\\)\")",
+      "Bash(python3 -m py_compile /Users/maxence/IdeaProjects/Personal/options-monitor/src/pricing.py)",
+      "Bash(python3 -m py_compile /Users/maxence/IdeaProjects/Personal/options-monitor/src/monitor.py)",
+      "Bash(python3 -m py_compile /Users/maxence/IdeaProjects/Personal/options-monitor/src/strategy/hedge_put.py)",
+      "Bash(python3 -m py_compile /Users/maxence/IdeaProjects/Personal/options-monitor/src/strategy/bull_call_spread.py)",
+      "Bash(find . -name *.pyc -o -name __pycache__ -o -name *.exe -o -name .idea -type d)",
+      "Bash(git rm:*)"
+    ]
+  }
+}

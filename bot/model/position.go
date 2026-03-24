@@ -39,22 +39,19 @@ type Position struct {
 	Notes     string   `json:"notes,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 
-	// ── 非 IC 策略（WHEEL_CSP / WHEEL_CC / BULL_CALL_SPREAD / HEDGE_PUT）──
-	StrikeSell      float64 `json:"strike_sell,omitempty"`
-	StrikeBuy       float64 `json:"strike_buy,omitempty"`
-	PremiumReceived float64 `json:"premium_received,omitempty"`
+	// ── Strike 欄位（統一命名：short/long + put/call + strike）──────────
+	// 各策略共用，依 Strategy 決定哪些欄位有值
+	ShortPutStrike  float64 `json:"short_put_strike,omitempty"`  // WHEEL_CSP, IC
+	LongPutStrike   float64 `json:"long_put_strike,omitempty"`   // HEDGE_PUT, IC
+	ShortCallStrike float64 `json:"short_call_strike,omitempty"` // WHEEL_CC, IC, BCS
+	LongCallStrike  float64 `json:"long_call_strike,omitempty"`  // IC, BCS
 
-	// ── IC 專用欄位（IRON_CONDOR）────────────────────────────────────────
-	// 在 Moomoo 分兩筆下單，各自記錄 short/long premium
-	// net premium = short - long（系統自動計算，作為 PnL 基準）
-	ShortPutStrike  float64 `json:"short_put_strike,omitempty"`
-	LongPutStrike   float64 `json:"long_put_strike,omitempty"`
-	ShortPutPremium      float64 `json:"short_put_premium,omitempty"`       // 賣出腳收到的 premium
-	LongPutPremium  float64 `json:"long_put_premium,omitempty"`  // 買入腳付出的 premium
-	ShortCallStrike float64 `json:"short_call_strike,omitempty"`
-	LongCallStrike  float64 `json:"long_call_strike,omitempty"`
-	ShortCallPremium     float64 `json:"short_call_premium,omitempty"`      // 賣出腳收到的 premium
-	LongCallPremium float64 `json:"long_call_premium,omitempty"` // 買入腳付出的 premium
+	// ── Premium ──────────────────────────────────────────────────────────
+	PremiumReceived  float64 `json:"premium_received,omitempty"`       // 非 IC 策略
+	ShortPutPremium  float64 `json:"short_put_premium,omitempty"`      // IC 賣出 Put 收到
+	LongPutPremium   float64 `json:"long_put_premium,omitempty"`       // IC 買入 Put 付出
+	ShortCallPremium float64 `json:"short_call_premium,omitempty"`     // IC 賣出 Call 收到
+	LongCallPremium  float64 `json:"long_call_premium,omitempty"`      // IC 買入 Call 付出
 
 	// ── 共用設定 ──────────────────────────────────────────────────────────
 	ProfitTargetPct float64 `json:"profit_target_pct"`
@@ -79,6 +76,20 @@ func (p *Position) GrossPremium() float64 {
 	return p.PremiumReceived
 }
 
+// MainStrike 回傳單腿策略的主要 Strike（供顯示用）
+func (p *Position) MainStrike() float64 {
+	switch p.Strategy {
+	case StrategyWheelCSP:
+		return p.ShortPutStrike
+	case StrategyWheelCC:
+		return p.ShortCallStrike
+	case StrategyHedgePut:
+		return p.LongPutStrike
+	default:
+		return 0
+	}
+}
+
 // ── AddPositionRequest ────────────────────────────────────────────────────────
 
 // AddPositionRequest 對應 /add 指令傳入的 JSON
@@ -89,20 +100,18 @@ type AddPositionRequest struct {
 	Contracts int      `json:"contracts"`
 	Notes     string   `json:"notes,omitempty"`
 
-	// 非 IC 策略
-	StrikeSell      float64 `json:"strike_sell,omitempty"`
-	StrikeBuy       float64 `json:"strike_buy,omitempty"`
-	PremiumReceived float64 `json:"premium_received,omitempty"`
-
-	// IC 專用
+	// Strike 欄位（統一命名）
 	ShortPutStrike  float64 `json:"short_put_strike,omitempty"`
 	LongPutStrike   float64 `json:"long_put_strike,omitempty"`
-	ShortPutPremium      float64 `json:"short_put_premium,omitempty"`
-	LongPutPremium  float64 `json:"long_put_premium,omitempty"`
 	ShortCallStrike float64 `json:"short_call_strike,omitempty"`
 	LongCallStrike  float64 `json:"long_call_strike,omitempty"`
-	ShortCallPremium     float64 `json:"short_call_premium,omitempty"`
-	LongCallPremium float64 `json:"long_call_premium,omitempty"`
+
+	// Premium
+	PremiumReceived  float64 `json:"premium_received,omitempty"`
+	ShortPutPremium  float64 `json:"short_put_premium,omitempty"`
+	LongPutPremium   float64 `json:"long_put_premium,omitempty"`
+	ShortCallPremium float64 `json:"short_call_premium,omitempty"`
+	LongCallPremium  float64 `json:"long_call_premium,omitempty"`
 
 	// 共用設定（選填，未填則用策略預設值）
 	ProfitTargetPct float64 `json:"profit_target_pct,omitempty"`

@@ -119,20 +119,18 @@ func (g *GistStore) AddPosition(req *model.AddPositionRequest) (*model.Position,
 		ProfitTargetPct: req.DefaultProfitTarget(),
 		LossLimitPct:    req.DefaultLossLimit(),
 
-		// 非 IC 策略欄位
-		StrikeSell:      req.StrikeSell,
-		StrikeBuy:       req.StrikeBuy,
-		PremiumReceived: req.PremiumReceived,
-
-		// IC 專用欄位（非 IC 策略這些會是 0，因 omitempty 不寫入 JSON）
+		// Strike 欄位（各策略共用，未使用的為 0，omitempty 不寫入 JSON）
 		ShortPutStrike:  req.ShortPutStrike,
 		LongPutStrike:   req.LongPutStrike,
-		ShortPutPremium:      req.ShortPutPremium,
-		LongPutPremium:  req.LongPutPremium,
 		ShortCallStrike: req.ShortCallStrike,
 		LongCallStrike:  req.LongCallStrike,
-		ShortCallPremium:     req.ShortCallPremium,
-		LongCallPremium: req.LongCallPremium,
+
+		// Premium
+		PremiumReceived:  req.PremiumReceived,
+		ShortPutPremium:  req.ShortPutPremium,
+		LongPutPremium:   req.LongPutPremium,
+		ShortCallPremium: req.ShortCallPremium,
+		LongCallPremium:  req.LongCallPremium,
 	}
 
 	store.Positions = append(store.Positions, pos)
