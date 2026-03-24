@@ -4,10 +4,10 @@ IRON_CONDOR 策略監控規則
 SPY Iron Condor（定義風險、穩定收 premium）
 
 進場：每月第一個交易日，30-45 DTE，20 張
-  Put Short  = 現價 × 94%  （PUT_STRIKE_SHORT）
-  Put Long   = 現價 × 91%  （PUT_STRIKE_LONG）
-  Call Short = 現價 × 106% （CALL_STRIKE_SHORT）
-  Call Long  = 現價 × 109% （CALL_STRIKE_LONG）
+  Put Short  = 現價 × 94%  （SHORT_PUT_STRIKE）
+  Put Long   = 現價 × 91%  （LONG_PUT_STRIKE）
+  Call Short = 現價 × 106% （SHORT_CALL_STRIKE）
+  Call Long  = 現價 × 109% （LONG_CALL_STRIKE）
   在 Moomoo 分兩筆下單，各自記錄 put_premium / call_premium
 
 PnL 計算：
@@ -104,8 +104,8 @@ class IronCondorStrategy(BaseStrategy):
         可用來判斷哪一側虧損更重，但目前只做方向警告即可。
         """
         stock_price       = price_data["stock_price"]
-        put_strike_short  = float(position["PUT_STRIKE_SHORT"])
-        call_strike_short = float(position["CALL_STRIKE_SHORT"])
+        put_strike_short  = float(position["SHORT_PUT_STRIKE"])
+        call_strike_short = float(position["SHORT_CALL_STRIKE"])
         symbol            = position["SYMBOL"]
 
         # Put 側突破（扣除緩衝）
